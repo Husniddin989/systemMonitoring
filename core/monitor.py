@@ -409,25 +409,32 @@ class SystemMonitor:
     #         self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
     #         return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
 
-    def get_top_processes(self):
+    def get_top_processes(self, metric="CPU"):
         try:
-            # Top 10 processni formatlab olish
-            process_list_command = (
-                "ps -eo comm,%cpu --sort=-%cpu | "
-                "awk 'NR==1 {next} NR<=11 {printf \"│   - %-20s (%s%%)\\n\", $1, $2}'"
-            )
+            if metric.upper() == "RAM":
+                process_list_command = (
+                    "ps -eo comm,%mem --sort=-%mem | "
+                    "awk 'NR==1 {next} NR<=11 {printf \"│   - %-20s (%s%%)\\n\", $1, $2}'"
+                )
+                total_command = (
+                    "ps -eo %mem --sort=-%mem | awk 'NR==1 {next} NR<=11 {sum+=$1} END {printf \"Umumiy RAM: %.1f%%\\n\", sum}'"
+                )
+            else:
+                process_list_command = (
+                    "ps -eo comm,%cpu --sort=-%cpu | "
+                    "awk 'NR==1 {next} NR<=11 {printf \"│   - %-20s (%s%%)\\n\", $1, $2}'"
+                )
+                total_command = (
+                    "ps -eo %cpu --sort=-%cpu | awk 'NR==1 {next} NR<=11 {sum+=$1} END {printf \"Umumiy CPU: %.1f%%\\n\", sum}'"
+                )
+
             process_output = subprocess.check_output(process_list_command, shell=True, text=True)
-
-            # Umumiy CPU foizini hisoblash
-            total_cpu_command = (
-                "ps -eo %cpu --sort=-%cpu | awk 'NR==1 {next} NR<=11 {sum+=$1} END {printf \"Umumiy CPU: %.1f%%\\n\", sum}'"
-            )
-            total_output = subprocess.check_output(total_cpu_command, shell=True, text=True)
-
-            # Birlashtirib natijani qaytaradi
+            total_output = subprocess.check_output(total_command, shell=True, text=True)
             return process_output + total_output
+
         except subprocess.CalledProcessError as e:
             return f"Xatolik yuz berdi: {e}"
+
 
     def get_disk_breakdown(self):
         """
