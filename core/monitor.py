@@ -173,6 +173,55 @@ class SystemMonitor:
     #         self.logger.error(f"CPU foydalanishini tekshirishda xatolik: {e}")
     #         return 0
    
+    # def check_cpu_usage(self):
+    #     """
+    #     CPU foydalanish foizini tekshirish - Linux komandasi asosida (bloklashsiz)
+        
+    #     Returns:
+    #         float: CPU foydalanish foizi
+    #     """
+    #     if not self.config.get('monitor_cpu', False):
+    #         return 0
+    #     try:
+    #         current_time = time.time()
+
+    #         if self._last_cpu_measure_time is None:
+    #             self._last_cpu_measure_time = current_time
+    #             return 0
+
+    #         time_diff = current_time - self._last_cpu_measure_time
+
+    #         if time_diff >= 0.5:
+    #             # Linuxning top komandasi yordamida CPU yuklanishini olish
+    #             result = subprocess.run(['top', '-bn1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    #             output = result.stdout
+
+    #             # 'Cpu(s):' satridan %id (idle) ni ajratib olish
+    #             cpu_line = next((line for line in output.splitlines() if "Cpu(s):" in line), None)
+    #             if cpu_line:
+    #                 # Regex orqali idle qiymatini olish
+    #                 match = re.search(r'(\d+\.\d+)\s*id', cpu_line)
+    #                 if match:
+    #                     idle = float(match.group(1))
+    #                     cpu_usage = int(round(100.0 - idle))
+    #                     cpu_count = os.cpu_count()
+    #                     self._last_cpu_measure_time = current_time
+    #                     self._last_cpu_percent = cpu_usage
+    #                     self.logger.debug(f"🔥 CPU Usage: {cpu_usage:.2f}% of {cpu_count} cores")
+    #                     # self.logger.debug(f"CPU Usage (from top): {cpu_usage:.2f}%")
+                        
+    #                     return cpu_usage
+
+    #             # Agar top natijasini o'qib bo'lmasa
+    #             self.logger.warning("top chiqishini tahlil qilib bo'lmadi")
+    #             return self._last_cpu_percent or 0
+    #         else:
+    #             return self._last_cpu_percent or 0
+
+    #     except Exception as e:
+    #         self.logger.error(f"CPU foydalanishini olishda xatolik (top orqali): {e}")
+    #         return 0
+    
     def check_cpu_usage(self):
         """
         CPU foydalanish foizini tekshirish - Linux komandasi asosida (bloklashsiz)
@@ -204,11 +253,10 @@ class SystemMonitor:
                     if match:
                         idle = float(match.group(1))
                         cpu_usage = int(round(100.0 - idle))
-                        cpu_count = os.cpu_count()
+                        cpu_count = os.cpu_count()  # CPU yadrolari soni
                         self._last_cpu_measure_time = current_time
                         self._last_cpu_percent = cpu_usage
                         self.logger.debug(f"🔥 CPU Usage: {cpu_usage:.2f}% of {cpu_count} cores")
-                        # self.logger.debug(f"CPU Usage (from top): {cpu_usage:.2f}%")
                         
                         return cpu_usage
 
@@ -221,7 +269,7 @@ class SystemMonitor:
         except Exception as e:
             self.logger.error(f"CPU foydalanishini olishda xatolik (top orqali): {e}")
             return 0
-    
+
     def check_disk_usage(self):
         """
         Disk foydalanish foizini tekshirish
