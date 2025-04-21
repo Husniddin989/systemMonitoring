@@ -2,161 +2,181 @@
 # -*- coding: utf-8 -*-
 
 """
-Tizim monitoring dasturining asosiy moduli
+Tizim monitoringi asosiy dasturi
 """
 
-import argparse
-import psutil
+import os
+import sys
 import time
+import argparse
+import logging
+from datetime import datetime
+
+# Modullarni import qilish
 from config.config_loader import ConfigLoader
-from utils.logger import Logger
-from utils.database import Database
 from core.monitor import SystemMonitor
-from core.formatter import AlertFormatter
 from core.alerts import AlertManager
+from core.formatter import AlertFormatter
 
-class MemoryMonitor:
-    def __init__(self, config_file):
-        """
-        Monitoring dasturini ishga tushirish
+def setup_logger(log_file, log_level):
+    """
+    Logger sozlash
+    
+    Args:
+        log_file (str): Log fayli yo'li
+        log_level (str): Log darajasi
         
-        Args:
-            config_file (str): Konfiguratsiya faylining yo‘li
-        """
-        # Logger ni ishga tushirish
-        self.logger = Logger('/Users/macbookpro/Desktop/systemMonitoring/logs/memory-monitor.log', 'INFO').get_logger()
-        
-        # Konfiguratsiyani yuklash
-        self.config_loader = ConfigLoader(config_file, self.logger)
-        self.config = self.config_loader.get_config()
-        
-        # Modullarni ishga tushirish
-        self.monitor = SystemMonitor(self.config, self.logger)
-        self.formatter = AlertFormatter(self.config, self.logger, self.monitor)
-        self.alert_manager = AlertManager(self.config, self.logger, self.formatter, self.monitor)
-        self.database = Database(self.config, self.logger)
-        
-        self.logger.info(f"Memory monitoring xizmati boshlandi")
-        self.logger.info(f"Konfiguratsiya fayli: {config_file}")
-        self.logger.debug(f"Monitoring sozlamalari: RAM {self.config['threshold']}%, interval {self.config['check_interval']} sek")
-
-    def update_status_file(self, metrics):
-        """
-        Holat faylini yangilash
-        
-        Args:
-            metrics (dict): Tizim metrikalari
-        """
-        status_file = '/tmp/memory-monitor-status.tmp'
-        date_str = time.strftime('%Y-%m-%d %H:%M:%S')
-        
-        try:
-            status_content = f"So'nggi tekshirish: {date_str}\n"
-            
-            for key, value in metrics.items():
-                if key == 'ram':
-                    status_content += f"RAM: {value}%\n"
-                elif key == 'cpu' and self.config['monitor_cpu']:
-                    status_content += f"CPU: {value}%\n"
-                elif key == 'disk' and self.config['monitor_disk']:
-                    status_content += f"Disk ({self.config['disk_path']}): {value}%\n"
-                elif key == 'swap' and self.config['monitor_swap'] and value > 0:
-                    status_content += f"Swap: {value}%\n"
-                elif key == 'load' and self.config['monitor_load']:
-                    load_per_core = value / 100
-                    load_1min = load_per_core * psutil.cpu_count(logical=True)
-                    status_content += f"Load: {load_1min:.2f} (core boshiga: {load_per_core:.2f})\n"
-                elif key == 'network' and self.config['monitor_network']:
-                    rx_rate, tx_rate = value
-                    status_content += f"Network ({self.config['network_interface']}): RX: {rx_rate:.2f} Mbps, TX: {tx_rate:.2f} Mbps\n"
-            
-            with open(status_file, 'w') as f:
-                f.write(status_content)
-                
-        except Exception as e:
-            self.logger.error(f"Holat faylini yangilashda xatolik: {e}")
-
-    def run(self):
-        """
-        Monitoring jarayonini boshlash
-        """
-        self.logger.info(f"Monitoring boshlandi. Interval: {self.config['check_interval']} soniya")
-        
-        while True:
-            try:
-                # Metrikalarni yig‘ish
-                metrics = {
-                    'ram': self.monitor.check_ram_usage(),
-                    'cpu': self.monitor.check_cpu_usage(),
-                    'disk': self.monitor.check_disk_usage(),
-                    'swap': self.monitor.check_swap_usage(),
-                    'load': self.monitor.check_load_average(),
-                    'network': self.monitor.check_network_usage()
-                }
-                
-                system_info = self.monitor.get_system_info()
-                
-                # Ma'lumotlar bazasida saqlash
-                if self.config['db_enabled']:
-                    self.database.store_metrics(metrics, system_info)
-                
-                # Prometheus metrikalarini yangilash
-                if self.config['prometheus_enabled']:
-                    self.alert_manager.update_prometheus_metrics(metrics)
-                
-                # Holat faylini yangilash
-                self.update_status_file(metrics)
-                
-                # Chegaralarni tekshirish va alert yuborish
-                if metrics['ram'] >= self.config['threshold']:
-                    self.logger.warning(f"Yuqori RAM ishlatilishi: {metrics['ram']}%")
-                    self.alert_manager.send_telegram_alert('RAM', f"{metrics['ram']}%", self.database, system_info)
-                
-                if self.config['monitor_cpu'] and metrics['cpu'] >= self.config['cpu_threshold']:
-                    self.logger.warning(f"Yuqori CPU ishlatilishi: {metrics['cpu']}%")
-                    self.alert_manager.send_telegram_alert('CPU', f"{metrics['cpu']}%", self.database, system_info)
-                
-                if self.config['monitor_disk'] and metrics['disk'] >= self.config['disk_threshold']:
-                    self.logger.warning(f"Yuqori disk ishlatilishi ({self.config['disk_path']}): {metrics['disk']}%")
-                    self.alert_manager.send_telegram_alert('Disk', f"{metrics['disk']}%", self.database, system_info)
-                
-                if self.config['monitor_swap'] and metrics['swap'] >= self.config['swap_threshold'] and metrics['swap'] > 0:
-                    self.logger.warning(f"Yuqori swap ishlatilishi: {metrics['swap']}%")
-                    self.alert_manager.send_telegram_alert('Swap', f"{metrics['swap']}%", self.database, system_info)
-                
-                if self.config['monitor_load'] and metrics['load'] >= self.config['load_threshold']:
-                    load_per_core = metrics['load'] / 100
-                    load_1min = load_per_core * psutil.cpu_count(logical=True)
-                    self.logger.warning(f"Yuqori load average: {load_1min:.2f} (core boshiga: {load_per_core:.2f})")
-                    self.alert_manager.send_telegram_alert('Load', f"{load_1min:.2f} (core boshiga: {load_per_core:.2f})", self.database, system_info)
-                
-                if self.config['monitor_network']:
-                    rx_rate, tx_rate = metrics['network']
-                    if rx_rate >= self.config['network_threshold'] or tx_rate >= self.config['network_threshold']:
-                        self.logger.warning(f"Yuqori tarmoq trafigi ({self.config['network_interface']}): RX: {rx_rate:.2f} Mbps, TX: {tx_rate:.2f} Mbps")
-                        self.alert_manager.send_telegram_alert('Network', f"RX: {rx_rate:.2f} Mbps, TX: {tx_rate:.2f} Mbps", self.database, system_info)
-                
-            except Exception as e:
-                self.logger.error(f"Monitoring jarayonida xatolik: {e}")
-            
-            time.sleep(self.config['check_interval'])
+    Returns:
+        logging.Logger: Logger obyekti
+    """
+    # Log darajasini aniqlash
+    level_map = {
+        'DEBUG': logging.DEBUG,
+        'INFO': logging.INFO,
+        'WARNING': logging.WARNING,
+        'ERROR': logging.ERROR,
+        'CRITICAL': logging.CRITICAL
+    }
+    level = level_map.get(log_level.upper(), logging.INFO)
+    
+    # Logger yaratish
+    logger = logging.getLogger('system_monitor')
+    logger.setLevel(level)
+    
+    # Formatni o'rnatish
+    formatter = logging.Formatter('%(asctime)s - [%(levelname)s] - %(message)s')
+    
+    # Fayl handleri
+    try:
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    except Exception as e:
+        print(f"Log faylini yaratishda xatolik: {e}")
+        print(f"Standart log fayli ishlatiladi: /tmp/system_monitor.log")
+        file_handler = logging.FileHandler('/tmp/system_monitor.log')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    # Konsol handleri
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+    
+    return logger
 
 def main():
     """
-    Dasturni ishga tushirish
+    Asosiy dastur
     """
-    parser = argparse.ArgumentParser(description='Tizim xotirasi, CPU va disk monitoringi')
-    parser.add_argument('--config', default='/etc/memory-monitor/config.conf', help='Konfiguratsiya fayli yo‘li')
-    parser.add_argument('--version', action='store_true', help='Versiya malumotini korsatish')
-    
+    # Argumentlarni tahlil qilish
+    parser = argparse.ArgumentParser(description='Tizim monitoringi')
+    parser.add_argument('--config', type=str, default='./config.conf', help='Konfiguratsiya fayli yo\'li')
     args = parser.parse_args()
     
-    if args.version:
-        print("Tizim Monitor 1.2.0")
-        sys.exit(0)
+    # Boshlang'ich logger
+    temp_logger = logging.getLogger('temp')
+    temp_logger.setLevel(logging.INFO)
+    temp_handler = logging.StreamHandler()
+    temp_logger.addHandler(temp_handler)
     
-    monitor = MemoryMonitor(args.config)
-    monitor.run()
+    # Konfiguratsiyani yuklash
+    config_loader = ConfigLoader(args.config, temp_logger)
+    config = config_loader.get_config()
+    
+    # Asosiy loggerni sozlash
+    logger = setup_logger(config['log_file'], config['log_level'])
+    logger.info(f"System Monitor ishga tushirilmoqda...")
+    logger.info(f"Konfiguratsiya fayli: {args.config}")
+    
+    # Monitoring obyektlarini yaratish
+    monitor = SystemMonitor(config, logger)
+    formatter = AlertFormatter(config, logger, monitor)
+    alert_manager = AlertManager(config, logger, formatter, monitor)
+    
+    # Database obyektini yaratish (agar kerak bo'lsa)
+    database = None
+    if config.get('db_enabled', False):
+        try:
+            from utils.database import Database
+            database = Database(config, logger)
+            logger.info("Ma'lumotlar bazasi ulanishi o'rnatildi")
+        except ImportError:
+            logger.error("Database moduli topilmadi")
+            config['db_enabled'] = False
+        except Exception as e:
+            logger.error(f"Ma'lumotlar bazasiga ulanishda xatolik: {e}")
+            config['db_enabled'] = False
+    
+    # Asosiy monitoring sikli
+    logger.info("Monitoring sikli boshlandi")
+    
+    try:
+        while True:
+            start_time = time.time()
+            
+            # Tizim ma'lumotlarini olish
+            system_info = monitor.get_system_info()
+            
+            # Resurslarni tekshirish
+            ram_usage = monitor.check_ram_usage()
+            cpu_usage = monitor.check_cpu_usage() if config.get('monitor_cpu', False) else 0
+            disk_usage = monitor.check_disk_usage() if config.get('monitor_disk', False) else 0
+            swap_usage = monitor.check_swap_usage() if config.get('monitor_swap', False) else 0
+            load_average = monitor.check_load_average() if config.get('monitor_load', False) else 0
+            network_usage = monitor.check_network_usage() if config.get('monitor_network', False) else [0, 0]
+            
+            # Metrikalarni saqlash
+            metrics = {
+                'ram': ram_usage,
+                'cpu': cpu_usage,
+                'disk': disk_usage,
+                'swap': swap_usage,
+                'load': load_average,
+                'network': network_usage
+            }
+            
+            # Prometheus metrikalarini yangilash
+            if config.get('prometheus_enabled', False):
+                alert_manager.update_prometheus_metrics(metrics)
+            
+            # Ma'lumotlar bazasiga saqlash
+            if config.get('db_enabled', False) and database:
+                database.store_metrics(metrics, system_info)
+            
+            # Alertlarni tekshirish
+            if ram_usage >= config.get('ram_threshold', 80):
+                alert_manager.send_telegram_alert('RAM', f"{ram_usage}%", database, system_info)
+            
+            if config.get('monitor_cpu', False) and cpu_usage >= config.get('cpu_threshold', 90):
+                alert_manager.send_telegram_alert('CPU', f"{cpu_usage}%", database, system_info)
+            
+            if config.get('monitor_disk', False) and disk_usage >= config.get('disk_threshold', 90):
+                alert_manager.send_telegram_alert('Disk', f"{disk_usage}%", database, system_info)
+            
+            if config.get('monitor_swap', False) and swap_usage >= config.get('swap_threshold', 80):
+                alert_manager.send_telegram_alert('Swap', f"{swap_usage}%", database, system_info)
+            
+            if config.get('monitor_load', False) and load_average >= config.get('load_threshold', 80):
+                alert_manager.send_telegram_alert('Load', f"{load_average:.1f}%", database, system_info)
+            
+            if config.get('monitor_network', False) and (network_usage[0] >= config.get('network_threshold', 90) or network_usage[1] >= config.get('network_threshold', 90)):
+                alert_manager.send_telegram_alert('Network', f"RX: {network_usage[0]:.1f} Mbps, TX: {network_usage[1]:.1f} Mbps", database, system_info)
+            
+            # Keyingi tekshirishgacha kutish
+            execution_time = time.time() - start_time
+            sleep_time = max(1, config.get('check_interval', 60) - execution_time)
+            
+            logger.debug(f"Tekshirish tugadi. Keyingi tekshirishgacha {sleep_time:.1f} soniya")
+            time.sleep(sleep_time)
+            
+    except KeyboardInterrupt:
+        logger.info("Dastur to'xtatildi (Ctrl+C)")
+    except Exception as e:
+        logger.error(f"Kutilmagan xatolik: {e}", exc_info=True)
+        return 1
+    
+    return 0
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

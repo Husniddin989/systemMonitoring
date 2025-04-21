@@ -126,102 +126,6 @@ class SystemMonitor:
         """
         mem = psutil.virtual_memory()
         return mem.percent
-
-    # def check_cpu_usage(self):
-    #     """
-    #     CPU foydalanish foizini tekshirish - bloklashsiz usul
-        
-    #     Returns:
-    #         float: CPU foydalanish foizi
-    #     """
-    #     if not self.config.get('monitor_cpu', False):
-    #         return 0
-    #     try:
-    #         # Agar top CPU jarayonlar umumiy foizini ko'rsatish kerak bo'lsa
-    #         if self.config.get('show_top_processes_cpu_sum', True):
-    #             return self._top_cpu_processes_total
-                
-    #         # Aks holda, tizim umumiy CPU foizini ko'rsatish
-    #         # Bloklashsiz usul - interval=None bilan chaqiriladi
-    #         current_time = time.time()
-            
-    #         # Birinchi marta chaqirilganda, boshlang'ich qiymatni o'rnatish
-    #         if self._last_cpu_measure_time is None:
-    #             # Birinchi o'lchov - faqat boshlang'ich qiymatni o'rnatish
-    #             self._last_cpu_measure_time = current_time
-    #             # interval=None bilan chaqirilganda, faqat o'lchov boshlaydi, qiymat qaytarmaydi
-    #             psutil.cpu_percent(interval=None)
-    #             return 0
-            
-    #         # Ikkinchi va keyingi o'lchovlar
-    #         # Oldingi o'lchovdan beri o'tgan vaqtni tekshirish
-    #         time_diff = current_time - self._last_cpu_measure_time
-            
-    #         # Agar kamida 0.5 soniya o'tgan bo'lsa, yangi o'lchov olish
-    #         if time_diff >= 0.5:
-    #             # interval=None bilan chaqirilganda, oldingi chaqiruvdan beri o'tgan vaqt uchun CPU foizini qaytaradi
-    #             cpu_percent = psutil.cpu_percent(interval=None)
-    #             self._last_cpu_measure_time = current_time
-    #             self._last_cpu_percent = cpu_percent
-    #             self.logger.debug(f"CPU Usage: {cpu_percent}% (yangilandi)")
-    #             return cpu_percent
-    #         else:
-    #             # Agar kamida 0.5 soniya o'tmagan bo'lsa, oxirgi o'lchov natijasini qaytarish
-    #             self.logger.debug(f"CPU Usage: {self._last_cpu_percent}% (keshdan)")
-    #             return self._last_cpu_percent
-                
-    #     except Exception as e:
-    #         self.logger.error(f"CPU foydalanishini tekshirishda xatolik: {e}")
-    #         return 0
-   
-    # def check_cpu_usage(self):
-    #     """
-    #     CPU foydalanish foizini tekshirish - Linux komandasi asosida (bloklashsiz)
-        
-    #     Returns:
-    #         float: CPU foydalanish foizi
-    #     """
-    #     if not self.config.get('monitor_cpu', False):
-    #         return 0
-    #     try:
-    #         current_time = time.time()
-
-    #         if self._last_cpu_measure_time is None:
-    #             self._last_cpu_measure_time = current_time
-    #             return 0
-
-    #         time_diff = current_time - self._last_cpu_measure_time
-
-    #         if time_diff >= 0.5:
-    #             # Linuxning top komandasi yordamida CPU yuklanishini olish
-    #             result = subprocess.run(['top', '-bn1'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    #             output = result.stdout
-
-    #             # 'Cpu(s):' satridan %id (idle) ni ajratib olish
-    #             cpu_line = next((line for line in output.splitlines() if "Cpu(s):" in line), None)
-    #             if cpu_line:
-    #                 # Regex orqali idle qiymatini olish
-    #                 match = re.search(r'(\d+\.\d+)\s*id', cpu_line)
-    #                 if match:
-    #                     idle = float(match.group(1))
-    #                     cpu_usage = int(round(100.0 - idle))
-    #                     cpu_count = os.cpu_count()
-    #                     self._last_cpu_measure_time = current_time
-    #                     self._last_cpu_percent = cpu_usage
-    #                     self.logger.debug(f"🔥 CPU Usage: {cpu_usage:.2f}% of {cpu_count} cores")
-    #                     # self.logger.debug(f"CPU Usage (from top): {cpu_usage:.2f}%")
-                        
-    #                     return cpu_usage
-
-    #             # Agar top natijasini o'qib bo'lmasa
-    #             self.logger.warning("top chiqishini tahlil qilib bo'lmadi")
-    #             return self._last_cpu_percent or 0
-    #         else:
-    #             return self._last_cpu_percent or 0
-
-    #     except Exception as e:
-    #         self.logger.error(f"CPU foydalanishini olishda xatolik (top orqali): {e}")
-    #         return 0
     
     def check_cpu_usage(self):
         """
@@ -233,6 +137,10 @@ class SystemMonitor:
         if not self.config.get('monitor_cpu', False):
             return 0
         try:
+            # Agar top CPU jarayonlar umumiy foizini ko'rsatish kerak bo'lsa
+            if self.config.get('show_top_processes_cpu_sum', True):
+                return self._top_cpu_processes_total
+                
             current_time = time.time()
 
             if self._last_cpu_measure_time is None:
@@ -286,8 +194,6 @@ class SystemMonitor:
         except Exception as e:
             self.logger.error(f"Disk foydalanishini tekshirishda xatolik: {e}")
             return 0
-
-
     
     def check_swap_usage(self):
         """
@@ -358,34 +264,65 @@ class SystemMonitor:
             self.logger.error(f"Tarmoq foydalanishini tekshirishda xatolik: {e}")
             return [0, 0]
 
-   
-
     def get_top_processes(self, metric="CPU"):
+        """
+        Eng ko'p resurs ishlatuvchi jarayonlarni olish
+        
+        Args:
+            metric (str): Resurs turi ('RAM', 'CPU')
+            
+        Returns:
+            str: Formatlangan jarayonlar ro'yxati
+        """
         try:
+            top_count = self.config.get('top_processes_count', 10)
+            show_total = self.config.get('show_total_cpu_usage_in_list', True)
+            
             if metric.upper() == "RAM":
                 process_list_command = (
-                    "ps -eo comm,%mem --sort=-%mem | "
-                    "awk 'NR==1 {next} NR<=11 {printf \"│   - %-20s (%s%%)\\n\", $1, $2}'"
+                    f"ps -eo comm,%mem --sort=-%mem | "
+                    f"awk 'NR==1 {{next}} NR<={top_count+1} {{printf \"│   - %-20s (%s%%)\\n\", $1, $2}}'"
                 )
                 total_command = (
-                    "ps -eo %mem --sort=-%mem | awk 'NR==1 {next} NR<=11 {sum+=$1} END {printf \"Umumiy RAM: %.1f%%\\n\", sum}'"
+                    f"ps -eo %mem --sort=-%mem | awk 'NR==1 {{next}} NR<={top_count+1} {{sum+=$1}} END {{printf \"\\nUmumiy RAM: %.1f%%\\n\", sum}}'"
                 )
-            else:
+            else:  # CPU
                 process_list_command = (
-                    "ps -eo comm,%cpu --sort=-%cpu | "
-                    "awk 'NR==1 {next} NR<=11 {printf \"│   - %-20s (%s%%)\\n\", $1, $2}'"
+                    f"ps -eo comm,%cpu --sort=-%cpu | "
+                    f"awk 'NR==1 {{next}} NR<={top_count+1} {{printf \"│   - %-20s (%s%%)\\n\", $1, $2}}'"
                 )
                 total_command = (
-                    "ps -eo %cpu --sort=-%cpu | awk 'NR==1 {next} NR<=11 {sum+=$1} END {printf \"Umumiy CPU: %.1f%%\\n\", sum}'"
+                    f"ps -eo %cpu --sort=-%cpu | awk 'NR==1 {{next}} NR<={top_count+1} {{sum+=$1}} END {{printf \"\\nUmumiy CPU usage (TOP {top_count}): %.1f%%\\n\", sum}}'"
                 )
 
             process_output = subprocess.check_output(process_list_command, shell=True, text=True)
+            
+            # Umumiy qiymatni hisoblash va saqlash
             total_output = subprocess.check_output(total_command, shell=True, text=True)
-            return process_output + total_output
+            
+            # CPU uchun umumiy qiymatni saqlash
+            if metric.upper() == "CPU":
+                try:
+                    # Umumiy CPU foizini ajratib olish
+                    match = re.search(r'(\d+\.\d+)%', total_output)
+                    if match:
+                        self._top_cpu_processes_total = float(match.group(1))
+                        self.logger.debug(f"Top {top_count} jarayonlar umumiy CPU foizi: {self._top_cpu_processes_total:.1f}%")
+                except Exception as e:
+                    self.logger.error(f"Umumiy CPU foizini ajratib olishda xatolik: {e}")
+            
+            # Agar umumiy qiymatni ko'rsatish kerak bo'lsa
+            if show_total:
+                return process_output + total_output
+            else:
+                return process_output
 
         except subprocess.CalledProcessError as e:
+            self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
             return f"Xatolik yuz berdi: {e}"
-
+        except Exception as e:
+            self.logger.error(f"Top jarayonlarni olishda umumiy xatolik: {e}")
+            return f"Umumiy xatolik: {e}"
 
     def get_disk_breakdown(self):
         """

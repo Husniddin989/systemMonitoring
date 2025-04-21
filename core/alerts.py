@@ -64,8 +64,9 @@ class AlertManager:
             self.prom_network_alerts = Counter('system_monitor_network_alerts_total', 'Total number of network alerts')
             
             # Serverni ishga tushirish
-            start_http_server(self.config['prometheus_port'])
-            self.logger.info(f"Prometheus exporter ishga tushirildi, port: {self.config['prometheus_port']}")
+            prometheus_port = self.config.get('prometheus_port', 9090)
+            start_http_server(prometheus_port)
+            self.logger.info(f"Prometheus exporter ishga tushirildi, port: {prometheus_port}")
             
         except ImportError:
             self.logger.error("Prometheus-client o'rnatilmagan. 'pip install prometheus-client' buyrug'i bilan o'rnating.")
@@ -119,7 +120,7 @@ class AlertManager:
             bool: Muvaffaqiyatli yuborilgan bo'lsa True
         """
         current_time = int(time.time())
-        alert_interval = self.config['check_interval'] * 10
+        alert_interval = self.config.get('check_interval', 60) * 10
         alert_key = alert_type.lower()
         
         time_since_last_alert = current_time - self.last_alert_times.get(alert_key, 0)
@@ -155,7 +156,7 @@ class AlertManager:
                     if self.config.get('prometheus_enabled', False):
                         getattr(self, f"prom_{alert_key}_alerts").inc()
                     
-                    if self.config.get('db_enabled', False):
+                    if self.config.get('db_enabled', False) and database:
                         database.store_alert(alert_type, usage_value, message, True, system_info)
                     
                 else:
@@ -174,7 +175,7 @@ class AlertManager:
             self.logger.error(f"BOT_TOKEN: {self.config['bot_token'][:5]}...{self.config['bot_token'][-5:]}")
             self.logger.error(f"CHAT_ID: {self.config['chat_id']}")
             
-            if self.config.get('db_enabled', False):
+            if self.config.get('db_enabled', False) and database:
                 database.store_alert(alert_type, usage_value, message, False, system_info)
             
             return False
@@ -194,18 +195,33 @@ class AlertManager:
         
         if self.config.get('alert_format_enabled', False):
             width = self.config.get('alert_format_width', 44)
-            line_prefix = "│ " if self.config.get('alert_format_use_box_drawing', True) else ""
-            line_suffix = " │" if self.config.get('alert_format_use_box_drawing', True) else ""
+            use_box_drawing = self.config.get('alert_format_use_box_drawing', True)
+            
+            if use_box_drawing:
+                line_prefix = self.config.get('alert_format_line_prefix', '│ ')
+                line_suffix = self.config.get('alert_format_line_suffix', ' │')
+            else:
+                line_prefix = ""
+                line_suffix = ""
+                
             content_width = width - len(line_prefix) - len(line_suffix) if width > 0 else 0
             
             message = []
-            message.append("┌────────────────────────────────────────────┐" if self.config.get('alert_format_use_box_drawing', True) else "")
+            if use_box_drawing:
+                message.append(self.config.get('alert_format_top_border', '┌' + '─' * (width - 2) + '┐'))
+            
             message.append(f"{line_prefix}🔄 SYSTEM MONITOR TEST MESSAGE{' ' * (content_width - len('🔄 SYSTEM MONITOR TEST MESSAGE'))}{line_suffix}")
-            message.append("├────────────────────────────────────────────┤" if self.config.get('alert_format_use_box_drawing', True) else "")
+            
+            if use_box_drawing:
+                message.append(self.config.get('alert_format_title_border', '├' + '─' * (width - 2) + '┤'))
+            
             message.append(f"{line_prefix}🖥️ Hostname:     {system_info['hostname']}{' ' * (content_width - len('🖥️ Hostname:     ') - len(system_info['hostname']))}{line_suffix}")
             message.append(f"{line_prefix}🌐 IP Address:   {system_info['ip']}{' ' * (content_width - len('🌐 IP Address:   ') - len(system_info['ip']))}{line_suffix}")
             message.append(f"{line_prefix}⏱️ Time:         {date_str}{' ' * (content_width - len('⏱️ Time:         ') - len(date_str))}{line_suffix}")
-            message.append("└────────────────────────────────────────────┘" if self.config.get('alert_format_use_box_drawing', True) else "")
+            
+            if use_box_drawing:
+                message.append(self.config.get('alert_format_bottom_border', '└' + '─' * (width - 2) + '┘'))
+            
             message = "\n".join(message)
         else:
             message = "🔄 SYSTEM MONITOR TEST MESSAGE\n\n"
