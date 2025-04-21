@@ -134,7 +134,7 @@ class Database:
                 try:
                     import psycopg2
                     self.db_conn = psycopg2.connect(
-                        host=self.config['evole']['db_host'],
+                        host=self.config['db_host'],
                         port=self.config['db_port'],
                         user=self.config['db_user'],
                         password=self.config['db_password'],
@@ -157,7 +157,7 @@ class Database:
                             network_rx FLOAT,
                             network_tx FLOAT,
                             extra_data TEXT
-                        )
+                        );
                     ''')
                     
                     self.db_cursor.execute('''
@@ -169,7 +169,7 @@ class Database:
                             value VARCHAR(100) NOT NULL,
                             message TEXT,
                             sent_successfully BOOLEAN
-                        )
+                        );
                     ''')
                     
                     self.db_conn.commit()
