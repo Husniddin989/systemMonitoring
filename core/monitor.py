@@ -29,6 +29,8 @@ class SystemMonitor:
         self._last_cpu_percent = 0
         # Jarayonlar CPU foizini kuzatish uchun lug'at
         self._process_cpu_times = {}
+        # Top CPU jarayonlar umumiy foizi
+        self._top_cpu_processes_total = 0
 
     def get_system_info(self):
         """
@@ -133,6 +135,11 @@ class SystemMonitor:
         if not self.config.get('monitor_cpu', False):
             return 0
         try:
+            # Agar top CPU jarayonlar umumiy foizini ko'rsatish kerak bo'lsa
+            if self.config.get('show_top_processes_cpu_sum', True):
+                return self._top_cpu_processes_total
+                
+            # Aks holda, tizim umumiy CPU foizini ko'rsatish
             # Bloklashsiz usul - interval=None bilan chaqiriladi
             current_time = time.time()
             
@@ -340,6 +347,8 @@ class SystemMonitor:
                         output = subprocess.check_output("ps -eo pid,comm,%cpu --sort=-%cpu | head -n " + str(count+1), shell=True).decode()
                         lines = output.strip().split('\n')[1:]  # Sarlavhani o'tkazib yuborish
                         
+                        # Umumiy CPU foizini hisoblash
+                        total_cpu = 0
                         result = []
                         for line in lines:
                             parts = line.strip().split()
@@ -347,15 +356,34 @@ class SystemMonitor:
                                 pid = parts[0]
                                 name = parts[1]
                                 cpu_percent = float(parts[2])
+                                total_cpu += cpu_percent
                                 result.append(f"  - {name.ljust(15)} ({cpu_percent:.1f}%)")
                         
+                        # Umumiy CPU foizini saqlash
+                        self._top_cpu_processes_total = total_cpu
+                        self.logger.debug(f"Top {count} jarayonlar umumiy CPU foizi: {total_cpu:.1f}%")
+                        
+                        # Agar qo'shimcha ma'lumot ko'rsatish kerak bo'lsa
+                        if self.config.get('show_total_cpu_usage_in_list', True):
+                            result.append(f"\nUmumiy CPU usage (TOP {count}): {total_cpu:.1f}%")
+                        
                         return "\n".join(result)
-                    except:
-                        self.logger.error("ps buyrug'i orqali CPU jarayonlarini olishda xatolik")
+                    except Exception as e:
+                        self.logger.error(f"ps buyrug'i orqali CPU jarayonlarini olishda xatolik: {e}")
                         return "CPU jarayon ma'lumotlarini olish imkonsiz"
+                
+                # Umumiy CPU foizini hisoblash
+                total_cpu = sum(cpu_percent for _, _, cpu_percent in processes[:count])
+                self._top_cpu_processes_total = total_cpu
+                self.logger.debug(f"Top {count} jarayonlar umumiy CPU foizi: {total_cpu:.1f}%")
                 
                 # Formatlangan natijani qaytarish
                 result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in processes[:count]]
+                
+                # Agar qo'shimcha ma'lumot ko'rsatish kerak bo'lsa
+                if self.config.get('show_total_cpu_usage_in_list', True):
+                    result.append(f"\nUmumiy CPU usage (TOP {count}): {total_cpu:.1f}%")
+                
                 return "\n".join(result)
                 
             elif resource_type == 'Disk':
