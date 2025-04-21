@@ -205,7 +205,7 @@ class AlertFormatter:
                         line = f"  - {path:<15} {size}"
                         message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
                 else:
-                    message.append(f"{line_prefix}  - Ma'lumot topilmadi{' ' * (content_width - len('  - Ma\'lumot topilmadi'))}{line_suffix}")
+                    message.append(f"{line_prefix}  - Ma'lumot topilmadi{' ' * (content_width - len('  - Malumot topilmadi'))}{line_suffix}")
                 
             message.append(bottom_border)
             message.append("</pre>")
