@@ -55,7 +55,7 @@ class AlertFormatter:
         message += f"{self.config.get('alert_format_os_emoji', '')} OS: {system_info['os']}\n"
         message += f"{self.config.get('alert_format_kernel_emoji', '')} Kernel: {system_info['kernel']}\n\n"
         message += f"{self.config.get('alert_format_ram_emoji', '')} RAM Usage: {ram_usage}% of {system_info['total_ram']}\n"
-        message += f"{self.config.get('alert_format_cpu_emoji', '')} CPU Usage: {cpu_usage}%\n"
+        message += f"{self.config.get('alert_format_cpu_emoji', '')} CPU Usage: {cpu_usage}% of system_info['total_cpu']\n"
         message += f"{self.config.get('alert_format_disk_emoji', '')} Disk Usage: {disk_usage}% of {system_info['total_disk']}\n\n"
 
         if self.config.get('include_top_processes', False):
