@@ -202,10 +202,11 @@ class SystemMonitor:
                     match = re.search(r'(\d+\.\d+)\s*id', cpu_line)
                     if match:
                         idle = float(match.group(1))
-                        cpu_usage = 100.0 - idle
+                        cpu_usage = int(round(100.0 - idle))
                         self._last_cpu_measure_time = current_time
                         self._last_cpu_percent = cpu_usage
                         self.logger.debug(f"CPU Usage (from top): {cpu_usage:.2f}%")
+                        
                         return cpu_usage
 
                 # Agar top natijasini o'qib bo'lmasa
