@@ -215,6 +215,7 @@ class SystemMonitor:
             return [0, 0]
 
     def get_top_processes(self, resource_type):
+
         """
         Eng ko‘p resurs ishlatuvchi jarayonlarni olish
         
@@ -273,3 +274,24 @@ class SystemMonitor:
         except Exception as e:
             self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
             return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
+        
+
+    def get_disk_breakdown(self):
+        """
+        Disk bo‘linmalari bo‘yicha foydalanish ma'lumotlarini olish
+        
+        Returns:
+            dict: Yo‘l va hajm juftliklari (masalan, {'/usr': '2.1G', '/lib': '1.3G'})
+        """
+        breakdown = {}
+        paths = ['/usr', '/lib', '/snap']  # Tekshiriladigan direktoriyalar
+        try:
+            for path in paths:
+                if os.path.exists(path):
+                    usage = psutil.disk_usage(path)
+                    size_gb = usage.used / (1024 ** 3)  # Baytlarni GiB ga aylantirish
+                    breakdown[path] = f"{size_gb:.1f}G"
+            self.logger.debug(f"Disk bo‘linmalari: {breakdown}")
+        except Exception as e:
+            self.logger.error(f"Disk bo‘linmalarini olishda xatolik: {e}")
+        return breakdown

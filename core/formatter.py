@@ -61,11 +61,15 @@ class AlertFormatter:
         if self.config.get('include_top_processes', False):
             top_processes = self.monitor.get_top_processes('RAM')
             message += f"{self.config.get('alert_format_top_processes_emoji', '')} Top RAM Consumers:\n{top_processes}\n"
+        
         if self.config.get('alert_format_include_disk_breakdown', False):
             disk_breakdown = self.monitor.get_disk_breakdown()
             message += f"{self.config.get('alert_format_disk_breakdown_emoji', '')} Disk Usage Breakdown:\n"
-            for path, size in disk_breakdown.items():
-                message += f"  - {path:<15} {size}\n"
+            if disk_breakdown:
+                for path, size in disk_breakdown.items():
+                    message += f"  - {path:<15} {size}\n"
+            else:
+                message += "  - Ma'lumot topilmadi\n"
 
         return message
 
@@ -137,10 +141,10 @@ class AlertFormatter:
             header = f"{self.config.get('alert_format_top_processes_emoji', '')} Top RAM Consumers:"
             message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
             top_processes = self.monitor.get_top_processes('RAM')
-            if isinstance(top_processes, str):
-                top_processes = top_processes.split('\n')[:self.config.get('top_processes_count', 3)]
-            for proc in top_processes:
-                message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
+            top_processes_lines = top_processes.split('\n')[:self.config.get('top_processes_count', 3)]
+            for proc in top_processes_lines:
+                if proc.strip():
+                    message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
             message.append(section_border)
 
         # Disk bo‘linmalari
@@ -148,9 +152,12 @@ class AlertFormatter:
             header = f"{self.config.get('alert_format_disk_breakdown_emoji', '')} Disk Usage Breakdown:"
             message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
             disk_breakdown = self.monitor.get_disk_breakdown()
-            for path, size in disk_breakdown.items():
-                line = f"  - {path:<15} {size}"
-                message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
+            if disk_breakdown:
+                for path, size in disk_breakdown.items():
+                    line = f"  - {path:<15} {size}"
+                    message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
+            else:
+                message.append(f"{line_prefix}  - Ma'lumot topilmadi{'' * (content_width - len('  - Malumot topilmadi'))}{line_suffix}")
 
         message.append(bottom_border)
         message.append("</pre>")
