@@ -47,7 +47,7 @@ class AlertFormatter:
         cpu_usage = self.monitor.check_cpu_usage() if self.config.get('monitor_cpu', False) else 0
         disk_usage = self.monitor.check_disk_usage() if self.config.get('monitor_disk', False) else 0
 
-        message = f"{self.config['alert_message_title']}\n\n"
+        message = f"{self.config['alert_message_title']}\n"
         message += f"{self.config.get('alert_format_date_emoji', '')} Date: {date_str}\n"
         message += f"{self.config.get('alert_format_hostname_emoji', '')} Hostname: {system_info['hostname']}\n"
         message += f"{self.config.get('alert_format_ip_emoji', '')} IP Address: {system_info['ip']}\n"
