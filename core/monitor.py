@@ -12,6 +12,7 @@ import platform
 import subprocess
 import time
 import os
+import re
 
 class SystemMonitor:
     def __init__(self, config, logger):
