@@ -206,8 +206,8 @@ class SystemMonitor:
                         cpu_count = os.cpu_count()
                         self._last_cpu_measure_time = current_time
                         self._last_cpu_percent = cpu_usage
-                        self.logger.debug(f"🔥 CPU Usage: {cpu_usage:.1f}% of {cpu_count} cores")
-                        self.logger.debug(f"CPU Usage (from top): {cpu_usage:.2f}%")
+                        self.logger.debug(f"🔥 CPU Usage: {cpu_usage:.2f}% of {cpu_count} cores")
+                        # self.logger.debug(f"CPU Usage (from top): {cpu_usage:.2f}%")
                         
                         return cpu_usage
 
