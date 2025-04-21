@@ -35,10 +35,10 @@ class AlertManager:
         }
         
         # Prometheus sozlamalari
-        if self.config['prometheus_enabled']:
+        if self.config.get('prometheus_enabled', False):
             self._init_prometheus()
         
-        # Telegram ulanishini sinovdan o‘tkazish
+        # Telegram ulanishini sinovdan o'tkazish
         self.test_telegram_connection()
 
     def _init_prometheus(self):
@@ -82,9 +82,9 @@ class AlertManager:
             metrics (dict): Tizim metrikalari
             
         Returns:
-            bool: Muvaffaqiyatli yangilangan bo‘lsa True
+            bool: Muvaffaqiyatli yangilangan bo'lsa True
         """
-        if not self.config['prometheus_enabled']:
+        if not self.config.get('prometheus_enabled', False):
             return False
         
         try:
@@ -116,7 +116,7 @@ class AlertManager:
             system_info (dict): Tizim ma'lumotlari
             
         Returns:
-            bool: Muvaffaqiyatli yuborilgan bo‘lsa True
+            bool: Muvaffaqiyatli yuborilgan bo'lsa True
         """
         current_time = int(time.time())
         alert_interval = self.config['check_interval'] * 10
@@ -152,10 +152,10 @@ class AlertManager:
                     success = True
                     self.last_alert_times[alert_key] = current_time
                     
-                    if self.config['prometheus_enabled']:
+                    if self.config.get('prometheus_enabled', False):
                         getattr(self, f"prom_{alert_key}_alerts").inc()
                     
-                    if self.config['db_enabled']:
+                    if self.config.get('db_enabled', False):
                         database.store_alert(alert_type, usage_value, message, True, system_info)
                     
                 else:
@@ -174,7 +174,7 @@ class AlertManager:
             self.logger.error(f"BOT_TOKEN: {self.config['bot_token'][:5]}...{self.config['bot_token'][-5:]}")
             self.logger.error(f"CHAT_ID: {self.config['chat_id']}")
             
-            if self.config['db_enabled']:
+            if self.config.get('db_enabled', False):
                 database.store_alert(alert_type, usage_value, message, False, system_info)
             
             return False
@@ -183,29 +183,29 @@ class AlertManager:
 
     def test_telegram_connection(self):
         """
-        Telegram ulanishini sinovdan o‘tkazish
+        Telegram ulanishini sinovdan o'tkazish
         
         Returns:
-            bool: Muvaffaqiyatli ulangan bo‘lsa True
+            bool: Muvaffaqiyatli ulangan bo'lsa True
         """
         self.logger.info('Telegram bog\'lanishini tekshirish...')
         system_info = self.monitor.get_system_info()
         date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-        if self.config['alert_format_enabled']:
-            width = self.config['alert_format_width']
-            line_prefix = "│ " if self.config['alert_format_use_box_drawing'] else ""
-            line_suffix = " │" if self.config['alert_format_use_box_drawing'] else ""
+        if self.config.get('alert_format_enabled', False):
+            width = self.config.get('alert_format_width', 44)
+            line_prefix = "│ " if self.config.get('alert_format_use_box_drawing', True) else ""
+            line_suffix = " │" if self.config.get('alert_format_use_box_drawing', True) else ""
             content_width = width - len(line_prefix) - len(line_suffix) if width > 0 else 0
             
             message = []
-            message.append("┌────────────────────────────────────────────┐" if self.config['alert_format_use_box_drawing'] else "")
+            message.append("┌────────────────────────────────────────────┐" if self.config.get('alert_format_use_box_drawing', True) else "")
             message.append(f"{line_prefix}🔄 SYSTEM MONITOR TEST MESSAGE{' ' * (content_width - len('🔄 SYSTEM MONITOR TEST MESSAGE'))}{line_suffix}")
-            message.append("├────────────────────────────────────────────┤" if self.config['alert_format_use_box_drawing'] else "")
+            message.append("├────────────────────────────────────────────┤" if self.config.get('alert_format_use_box_drawing', True) else "")
             message.append(f"{line_prefix}🖥️ Hostname:     {system_info['hostname']}{' ' * (content_width - len('🖥️ Hostname:     ') - len(system_info['hostname']))}{line_suffix}")
             message.append(f"{line_prefix}🌐 IP Address:   {system_info['ip']}{' ' * (content_width - len('🌐 IP Address:   ') - len(system_info['ip']))}{line_suffix}")
             message.append(f"{line_prefix}⏱️ Time:         {date_str}{' ' * (content_width - len('⏱️ Time:         ') - len(date_str))}{line_suffix}")
-            message.append("└────────────────────────────────────────────┘" if self.config['alert_format_use_box_drawing'] else "")
+            message.append("└────────────────────────────────────────────┘" if self.config.get('alert_format_use_box_drawing', True) else "")
             message = "\n".join(message)
         else:
             message = "🔄 SYSTEM MONITOR TEST MESSAGE\n\n"

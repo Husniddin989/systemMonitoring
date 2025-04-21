@@ -24,6 +24,9 @@ class SystemMonitor:
         """
         self.config = config
         self.logger = logger
+        # CPU o'lchovi uchun o'zgaruvchilar
+        self._last_cpu_measure_time = None
+        self._last_cpu_percent = 0
 
     def get_system_info(self):
         """
@@ -120,7 +123,7 @@ class SystemMonitor:
 
     def check_cpu_usage(self):
         """
-        CPU foydalanish foizini tekshirish
+        CPU foydalanish foizini tekshirish - bloklashsiz usul
         
         Returns:
             float: CPU foydalanish foizi
@@ -128,9 +131,34 @@ class SystemMonitor:
         if not self.config.get('monitor_cpu', False):
             return 0
         try:
-            cpu_percent = psutil.cpu_percent(interval=1)
-            self.logger.debug(f"CPU Usage: {cpu_percent}%")
-            return cpu_percent
+            # Bloklashsiz usul - interval=None bilan chaqiriladi
+            current_time = time.time()
+            
+            # Birinchi marta chaqirilganda, boshlang'ich qiymatni o'rnatish
+            if self._last_cpu_measure_time is None:
+                # Birinchi o'lchov - faqat boshlang'ich qiymatni o'rnatish
+                self._last_cpu_measure_time = current_time
+                # interval=None bilan chaqirilganda, faqat o'lchov boshlaydi, qiymat qaytarmaydi
+                psutil.cpu_percent(interval=None)
+                return 0
+            
+            # Ikkinchi va keyingi o'lchovlar
+            # Oldingi o'lchovdan beri o'tgan vaqtni tekshirish
+            time_diff = current_time - self._last_cpu_measure_time
+            
+            # Agar kamida 0.5 soniya o'tgan bo'lsa, yangi o'lchov olish
+            if time_diff >= 0.5:
+                # interval=None bilan chaqirilganda, oldingi chaqiruvdan beri o'tgan vaqt uchun CPU foizini qaytaradi
+                cpu_percent = psutil.cpu_percent(interval=None)
+                self._last_cpu_measure_time = current_time
+                self._last_cpu_percent = cpu_percent
+                self.logger.debug(f"CPU Usage: {cpu_percent}% (yangilandi)")
+                return cpu_percent
+            else:
+                # Agar kamida 0.5 soniya o'tmagan bo'lsa, oxirgi o'lchov natijasini qaytarish
+                self.logger.debug(f"CPU Usage: {self._last_cpu_percent}% (keshdan)")
+                return self._last_cpu_percent
+                
         except Exception as e:
             self.logger.error(f"CPU foydalanishini tekshirishda xatolik: {e}")
             return 0
@@ -222,13 +250,13 @@ class SystemMonitor:
 
     def get_top_processes(self, resource_type):
         """
-        Eng ko‘p resurs ishlatuvchi jarayonlarni olish
+        Eng ko'p resurs ishlatuvchi jarayonlarni olish
         
         Args:
             resource_type (str): Resurs turi ('RAM', 'CPU', 'Disk')
             
         Returns:
-            str: Formatlangan jarayonlar ro‘yxati
+            str: Formatlangan jarayonlar ro'yxati
         """
         count = self.config.get('top_processes_count', 10)
         try:
@@ -246,24 +274,30 @@ class SystemMonitor:
                 
             elif resource_type == 'CPU':
                 processes = []
-                for proc in psutil.process_iter(['pid', 'name']):
-                    try:
-                        proc.cpu_percent(interval=None)  # Birinchi chaqiruv
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
-                
-                time.sleep(1)  # Sinxron o‘lchov uchun kutish
-                
-                for proc in psutil.process_iter(['pid', 'name']):
+                # CPU jarayonlarini olish uchun bloklashsiz usul
+                for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
                     try:
                         cpu_percent = proc.cpu_percent(interval=None)
-                        if cpu_percent >= 0:  # Barcha jarayonlarni qo‘shish
+                        if cpu_percent >= 0:  # Barcha jarayonlarni qo'shish
                             processes.append((proc.info['pid'], proc.info['name'], cpu_percent))
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         pass
                 
-                processes.sort(key=lambda x: x[2], reverse=True)
-                result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in processes[:count]]
+                # Qisqa kutish vaqti (bloklashsiz usul uchun)
+                time.sleep(0.1)
+                
+                # Ikkinchi o'lchov
+                updated_processes = []
+                for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+                    try:
+                        cpu_percent = proc.cpu_percent(interval=None)
+                        if cpu_percent >= 0:
+                            updated_processes.append((proc.info['pid'], proc.info['name'], cpu_percent))
+                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                        pass
+                
+                updated_processes.sort(key=lambda x: x[2], reverse=True)
+                result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in updated_processes[:count]]
                 return "\n".join(result)
                 
             elif resource_type == 'Disk':
@@ -291,10 +325,10 @@ class SystemMonitor:
 
     def get_disk_breakdown(self):
         """
-        Disk bo‘linmalari bo‘yicha foydalanish ma'lumotlarini olish
+        Disk bo'linmalari bo'yicha foydalanish ma'lumotlarini olish
         
         Returns:
-            dict: Yo‘l va hajm juftliklari
+            dict: Yo'l va hajm juftliklari
         """
         breakdown = {}
         paths = ['/usr', '/lib', '/snap']
@@ -304,7 +338,7 @@ class SystemMonitor:
                     usage = psutil.disk_usage(path)
                     size_gb = usage.used / (1024 ** 3)
                     breakdown[path] = f"{size_gb:.1f}G"
-            self.logger.debug(f"Disk bo‘linmalari: {breakdown}")
+            self.logger.debug(f"Disk bo'linmalari: {breakdown}")
         except Exception as e:
-            self.logger.error(f"Disk bo‘linmalarini olishda xatolik: {e}")
+            self.logger.error(f"Disk bo'linmalarini olishda xatolik: {e}")
         return breakdown

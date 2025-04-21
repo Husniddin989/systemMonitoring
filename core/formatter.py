@@ -159,7 +159,7 @@ class AlertFormatter:
                     message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
             message.append(section_border)
 
-        # Disk bo‘linmalari
+        # Disk bo'linmalari
         if self.config.get('alert_format_include_disk_breakdown', True):
             header = f"{self.config.get('alert_format_disk_breakdown_emoji', '')} Disk Usage Breakdown:"
             message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
