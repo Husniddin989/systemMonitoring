@@ -6,6 +6,7 @@ Tizim monitoring dasturining asosiy moduli
 """
 
 import argparse
+import psutil
 import time
 from config.config_loader import ConfigLoader
 from utils.logger import Logger
