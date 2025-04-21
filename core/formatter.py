@@ -47,7 +47,7 @@ class AlertFormatter:
         cpu_usage = self.monitor.check_cpu_usage() if self.config.get('monitor_cpu', False) else 0
         disk_usage = self.monitor.check_disk_usage() if self.config.get('monitor_disk', False) else 0
 
-        message = f"{self.config['alert_message_title']}\n"
+        message = f"{self.config['alert_message_title']}\n\n"
         message += f"{self.config.get('alert_format_date_emoji', '')} Date: {date_str}\n"
         message += f"{self.config.get('alert_format_hostname_emoji', '')} Hostname: {system_info['hostname']}\n"
         message += f"{self.config.get('alert_format_ip_emoji', '')} IP Address: {system_info['ip']}\n"
@@ -61,6 +61,8 @@ class AlertFormatter:
         if self.config.get('include_top_processes', False):
             top_processes = self.monitor.get_top_processes('RAM')
             message += f"{self.config.get('alert_format_top_processes_emoji', '')} Top RAM Consumers:\n{top_processes}\n"
+            top_cpu_processes = self.monitor.get_top_processes('CPU')
+            message += f"{self.config.get('alert_format_top_processes_emoji', '')} Top CPU Consumers:\n{top_cpu_processes}\n"
         
         if self.config.get('alert_format_include_disk_breakdown', False):
             disk_breakdown = self.monitor.get_disk_breakdown()
@@ -136,13 +138,23 @@ class AlertFormatter:
                 message.append(f"{line_prefix}{text:<{content_width}}{line_suffix}")
             message.append(section_border)
 
-        # Top jarayonlar
+        # Top jarayonlar (RAM)
         if self.config.get('alert_format_include_top_processes', True) and self.config.get('include_top_processes', False):
             header = f"{self.config.get('alert_format_top_processes_emoji', '')} Top RAM Consumers:"
             message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
             top_processes = self.monitor.get_top_processes('RAM')
             top_processes_lines = top_processes.split('\n')[:self.config.get('top_processes_count', 3)]
             for proc in top_processes_lines:
+                if proc.strip():
+                    message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
+            message.append(section_border)
+
+            # Top jarayonlar (CPU)
+            header = f"{self.config.get('alert_format_top_processes_emoji', '')} Top CPU Consumers:"
+            message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
+            top_cpu_processes = self.monitor.get_top_processes('CPU')
+            top_cpu_processes_lines = top_cpu_processes.split('\n')[:self.config.get('top_processes_count', 3)]
+            for proc in top_cpu_processes_lines:
                 if proc.strip():
                     message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
             message.append(section_border)
