@@ -25,6 +25,99 @@ class SystemMonitor:
         self.config = config
         self.logger = logger
 
+    def get_system_info(self):
+        """
+        Tizim haqida umumiy ma'lumotlarni olish
+        
+        Returns:
+            dict: Tizim ma'lumotlari (hostname, ip, os, kernel, cpu, uptime, ram, disk)
+        """
+        hostname = socket.gethostname()
+        server_ip = '127.0.0.1'
+        
+        # IP manzilni aniqlash
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("8.8.8.8", 80))
+            server_ip = s.getsockname()[0]
+            s.close()
+        except:
+            pass
+        
+        kernel = platform.release()
+        os_info = f"{platform.system()} {platform.release()}"
+        
+        try:
+            os_info = subprocess.check_output("cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2 | tr -d '\"'", shell=True).decode().strip()
+        except:
+            pass
+        
+        # Ishlash vaqtini hisoblash
+        uptime_seconds = 0
+        try:
+            with open('/proc/uptime', 'r') as f:
+                uptime_seconds = float(f.readline().split()[0])
+        except:
+            uptime_seconds = time.time() - psutil.boot_time()
+        
+        uptime_days = int(uptime_seconds // 86400)
+        uptime_hours = int((uptime_seconds % 86400) // 3600)
+        uptime_minutes = int((uptime_seconds % 3600) // 60)
+        
+        if uptime_days > 0:
+            uptime = f"{uptime_days}d {uptime_hours}h {uptime_minutes}m"
+        elif uptime_hours > 0:
+            uptime = f"{uptime_hours}h {uptime_minutes}m"
+        else:
+            uptime = f"{uptime_minutes}m"
+        
+        # CPU ma'lumotlari
+        cpu_info = "Unknown CPU"
+        cpu_cores = psutil.cpu_count(logical=True)
+        try:
+            with open('/proc/cpuinfo', 'r') as f:
+                for line in f:
+                    if line.startswith('model name'):
+                        cpu_info = line.split(':', 1)[1].strip()
+                        break
+        except:
+            pass
+        
+        # Xotira ma'lumotlari
+        total_memory = psutil.virtual_memory().total
+        total_memory_gb = total_memory / (1024 ** 3)
+        
+        # Disk ma'lumotlari
+        total_disk = 0
+        try:
+            disk_usage = psutil.disk_usage(self.config['disk_path'])
+            total_disk = disk_usage.total
+        except:
+            pass
+        
+        total_disk_gb = total_disk / (1024 ** 3)
+        
+        return {
+            'hostname': hostname,
+            'ip': server_ip,
+            'os': os_info,
+            'kernel': kernel,
+            'cpu': f"{cpu_info} ({cpu_cores} cores)",
+            'uptime': uptime,
+            'total_ram': f"{total_memory_gb:.1f}Gi",
+            'total_disk': f"{total_disk_gb:.1f}G"
+        }
+
+    def check_ram_usage(self):
+        """
+        RAM foydalanish foizini tekshirish
+        
+        Returns:
+            float: RAM foydalanish foizi
+        """
+        mem = psutil.virtual_memory()
+        return mem.percent
+
     def check_cpu_usage(self):
         """
         CPU foydalanish foizini tekshirish
@@ -35,13 +128,97 @@ class SystemMonitor:
         if not self.config.get('monitor_cpu', False):
             return 0
         try:
-            # Bir nechta o‘lchovlar orqali aniqlikni oshirish
             cpu_percent = psutil.cpu_percent(interval=1)
             self.logger.debug(f"CPU Usage: {cpu_percent}%")
             return cpu_percent
         except Exception as e:
             self.logger.error(f"CPU foydalanishini tekshirishda xatolik: {e}")
             return 0
+
+    def check_disk_usage(self):
+        """
+        Disk foydalanish foizini tekshirish
+        
+        Returns:
+            float: Disk foydalanish foizi
+        """
+        if not self.config.get('monitor_disk', False):
+            return 0
+        try:
+            disk_usage = psutil.disk_usage(self.config['disk_path'])
+            return disk_usage.percent
+        except Exception as e:
+            self.logger.error(f"Disk foydalanishini tekshirishda xatolik: {e}")
+            return 0
+
+    def check_swap_usage(self):
+        """
+        Swap xotira foydalanish foizini tekshirish
+        
+        Returns:
+            float: Swap foydalanish foizi
+        """
+        if not self.config.get('monitor_swap', False):
+            return 0
+        try:
+            swap = psutil.swap_memory()
+            if swap.total == 0:
+                return 0
+            return swap.percent
+        except Exception as e:
+            self.logger.error(f"Swap foydalanishini tekshirishda xatolik: {e}")
+            return 0
+
+    def check_load_average(self):
+        """
+        Tizim yuklanishini tekshirish (core boshiga)
+        
+        Returns:
+            float: Yuklanish foizi
+        """
+        if not self.config.get('monitor_load', False):
+            return 0
+        try:
+            load_avg = psutil.getloadavg()[0]
+            cpu_cores = psutil.cpu_count(logical=True)
+            load_per_core = load_avg / cpu_cores
+            return load_per_core * 100
+        except Exception as e:
+            self.logger.error(f"Yuklanishni tekshirishda xatolik: {e}")
+            return 0
+
+    def check_network_usage(self):
+        """
+        Tarmoq foydalanishini tekshirish (Mbps)
+        
+        Returns:
+            list: [rx_rate, tx_rate]
+        """
+        if not self.config.get('monitor_network', False):
+            return [0, 0]
+        interface = self.config.get('network_interface', 'eth0')
+        try:
+            net_io_counters = psutil.net_io_counters(pernic=True)
+            if interface not in net_io_counters:
+                self.logger.error(f"Tarmoq interfeysi topilmadi: {interface}")
+                return [0, 0]
+            
+            rx_bytes_1 = net_io_counters[interface].bytes_recv
+            tx_bytes_1 = net_io_counters[interface].bytes_sent
+            
+            time.sleep(1)
+            
+            net_io_counters = psutil.net_io_counters(pernic=True)
+            rx_bytes_2 = net_io_counters[interface].bytes_recv
+            tx_bytes_2 = net_io_counters[interface].bytes_sent
+            
+            rx_rate = ((rx_bytes_2 - rx_bytes_1) * 8) / 1024 / 1024
+            tx_rate = ((tx_bytes_2 - tx_bytes_1) * 8) / 1024 / 1024
+            
+            return [rx_rate, tx_rate]
+        except Exception as e:
+            self.logger.error(f"Tarmoq foydalanishini tekshirishda xatolik: {e}")
+            return [0, 0]
 
     def get_top_processes(self, resource_type):
         """
@@ -69,10 +246,8 @@ class SystemMonitor:
                 
             elif resource_type == 'CPU':
                 processes = []
-                # Jarayonlarni oldindan yig‘ish
                 for proc in psutil.process_iter(['pid', 'name']):
                     try:
-                        # CPU foizini 1 soniya oralig‘ida hisoblash
                         proc.cpu_percent(interval=None)  # Birinchi chaqiruv
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         pass
@@ -114,33 +289,6 @@ class SystemMonitor:
             self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
             return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
 
-    # Qo‘shimcha metodlar (oldingi versiyadan qolganlar saqlanadi)
-    def check_ram_usage(self):
-        """
-        RAM foydalanish foizini tekshirish
-        
-        Returns:
-            float: RAM foydalanish foizi
-        """
-        mem = psutil.virtual_memory()
-        return mem.percent
-
-    def check_disk_usage(self):
-        """
-        Disk foydalanish foizini tekshirish
-        
-        Returns:
-            float: Disk foydalanish foizi
-        """
-        if not self.config.get('monitor_disk', False):
-            return 0
-        try:
-            disk_usage = psutil.disk_usage(self.config['disk_path'])
-            return disk_usage.percent
-        except Exception as e:
-            self.logger.error(f"Disk foydalanishini tekshirishda xatolik: {e}")
-            return 0
-
     def get_disk_breakdown(self):
         """
         Disk bo‘linmalari bo‘yicha foydalanish ma'lumotlarini olish
@@ -160,5 +308,3 @@ class SystemMonitor:
         except Exception as e:
             self.logger.error(f"Disk bo‘linmalarini olishda xatolik: {e}")
         return breakdown
-
-    # Boshqa metodlar (get_system_info, check_swap_usage, check_load_average, check_network_usage) o‘zgarishsiz qoladi
