@@ -27,6 +27,8 @@ class SystemMonitor:
         # CPU o'lchovi uchun o'zgaruvchilar
         self._last_cpu_measure_time = None
         self._last_cpu_percent = 0
+        # Jarayonlar CPU foizini kuzatish uchun lug'at
+        self._process_cpu_times = {}
 
     def get_system_info(self):
         """
@@ -273,31 +275,87 @@ class SystemMonitor:
                 return "\n".join(result)
                 
             elif resource_type == 'CPU':
+                # Yangilangan CPU jarayonlarini olish usuli
+                current_time = time.time()
                 processes = []
-                # CPU jarayonlarini olish uchun bloklashsiz usul
-                for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+                
+                # Barcha jarayonlarni o'qib olish
+                for proc in psutil.process_iter(['pid', 'name']):
                     try:
-                        cpu_percent = proc.cpu_percent(interval=None)
-                        if cpu_percent >= 0:  # Barcha jarayonlarni qo'shish
-                            processes.append((proc.info['pid'], proc.info['name'], cpu_percent))
+                        pid = proc.info['pid']
+                        name = proc.info['name']
+                        
+                        # Jarayon CPU vaqtini olish
+                        proc_cpu_times = proc.cpu_times()
+                        proc_create_time = proc.create_time()
+                        
+                        # Jarayon uchun CPU vaqti va tizim vaqtini saqlash
+                        total_cpu_time = proc_cpu_times.user + proc_cpu_times.system
+                        
+                        # Agar jarayon avval ko'rilgan bo'lsa, CPU foizini hisoblash
+                        if pid in self._process_cpu_times:
+                            old_time, old_timestamp = self._process_cpu_times[pid]
+                            
+                            # Vaqt farqini hisoblash
+                            time_delta = current_time - old_timestamp
+                            
+                            if time_delta > 0:
+                                # CPU vaqti farqini hisoblash
+                                cpu_delta = total_cpu_time - old_time
+                                
+                                # CPU foizini hisoblash (100% = 1 CPU core)
+                                cpu_usage = (cpu_delta / time_delta) * 100
+                                
+                                # Natijani qo'shish
+                                processes.append((pid, name, cpu_usage))
+                        
+                        # Joriy vaqtni yangilash
+                        self._process_cpu_times[pid] = (total_cpu_time, current_time)
+                        
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
+                        # Jarayon yo'qolgan yoki ruxsat yo'q
+                        if pid in self._process_cpu_times:
+                            del self._process_cpu_times[pid]
+                        continue
                 
-                # Qisqa kutish vaqti (bloklashsiz usul uchun)
-                time.sleep(0.1)
+                # Eski jarayonlarni tozalash (mavjud bo'lmagan jarayonlar)
+                pids_to_remove = []
+                for pid in self._process_cpu_times:
+                    if not psutil.pid_exists(pid):
+                        pids_to_remove.append(pid)
                 
-                # Ikkinchi o'lchov
-                updated_processes = []
-                for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+                for pid in pids_to_remove:
+                    del self._process_cpu_times[pid]
+                
+                # Natijalarni tartiblash
+                processes.sort(key=lambda x: x[2], reverse=True)
+                
+                # Agar hech qanday jarayon bo'lmasa yoki hisoblangan CPU foizlari bo'lmasa
+                if not processes:
+                    # Oddiy usul bilan olish
+                    self.logger.debug("CPU jarayonlari hisoblash uchun ma'lumot yetarli emas, oddiy usul ishlatilmoqda")
+                    
+                    # ps buyrug'i orqali olish
                     try:
-                        cpu_percent = proc.cpu_percent(interval=None)
-                        if cpu_percent >= 0:
-                            updated_processes.append((proc.info['pid'], proc.info['name'], cpu_percent))
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
+                        output = subprocess.check_output("ps -eo pid,comm,%cpu --sort=-%cpu | head -n " + str(count+1), shell=True).decode()
+                        lines = output.strip().split('\n')[1:]  # Sarlavhani o'tkazib yuborish
+                        
+                        result = []
+                        for line in lines:
+                            parts = line.strip().split()
+                            if len(parts) >= 3:
+                                pid = parts[0]
+                                name = parts[1]
+                                cpu_percent = float(parts[2])
+                                result.append(f"  - {name.ljust(15)} ({cpu_percent:.1f}%)")
+                        
+                        return "\n".join(result)
+                    except:
+                        self.logger.error("ps buyrug'i orqali CPU jarayonlarini olishda xatolik")
+                        return "CPU jarayon ma'lumotlarini olish imkonsiz"
                 
-                updated_processes.sort(key=lambda x: x[2], reverse=True)
-                result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in updated_processes[:count]]
+                # Formatlangan natijani qaytarish
+                result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in processes[:count]]
                 return "\n".join(result)
                 
             elif resource_type == 'Disk':
