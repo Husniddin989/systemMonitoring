@@ -214,7 +214,7 @@ class SystemMonitor:
             self.logger.error(f"Tarmoq foydalanishini tekshirishda xatolik: {e}")
             return [0, 0]
 
-    def get_top_processes(self):
+    def get_top_processes(self, resource_type):
         """
         Eng ko‘p resurs ishlatuvchi jarayonlarni olish
         
