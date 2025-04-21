@@ -23,7 +23,7 @@ class MemoryMonitor:
             config_file (str): Konfiguratsiya faylining yo‘li
         """
         # Logger ni ishga tushirish
-        self.logger = Logger('/var/log/memory_monitor.log', 'INFO').get_logger()
+        self.logger = Logger('/Users/macbookpro/Desktop/systemMonitoring/logs/memory-monitor.log', 'INFO').get_logger()
         
         # Konfiguratsiyani yuklash
         self.config_loader = ConfigLoader(config_file, self.logger)

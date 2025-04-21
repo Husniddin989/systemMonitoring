@@ -1,0 +1,56 @@
+2025-04-21 06:40:15,512 - [INFO] - Konfiguratsiya fayli muvaffaqiyatli o‘qildi: config.conf
+2025-04-21 06:40:15,512 - [INFO] - Telegram bog'lanishini tekshirish...
+2025-04-21 06:40:16,075 - [INFO] - Telegram bog'lanishi muvaffaqiyatli tekshirildi
+2025-04-21 06:40:16,076 - [INFO] - Memory monitoring xizmati boshlandi
+2025-04-21 06:40:16,076 - [INFO] - Konfiguratsiya fayli: config.conf
+2025-04-21 06:40:16,076 - [INFO] - Monitoring boshlandi. Interval: 60 soniya
+2025-04-21 06:40:18,104 - [ERROR] - Holat faylini yangilashda xatolik: name 'psutil' is not defined
+2025-04-21 06:40:18,104 - [WARNING] - Yuqori RAM ishlatilishi: 84.0%
+2025-04-21 06:40:19,182 - [ERROR] - Top jarayonlarni olishda xatolik: '<' not supported between instances of 'float' and 'NoneType'
+2025-04-21 06:40:37,214 - [INFO] - ----------------------------------------
+2025-04-21 06:40:37,214 - [INFO] - 
+           🖥️ SYSTEM STATUS ALERT           
+
+🗓️ Date: 2025-04-21 06:40:18                
+ Hostname: MacBook-Pro-Macbook.local        
+ IP Address: 192.168.0.110                  
+ Uptime: 4d 13h 54m                         
+ OS:                                        
+ Kernel: 24.3.0                             
+
+🧠 RAM Usage: 83.8% of 8.0Gi                 
+🔥 CPU Usage: 10.0%                          
+💾 Disk Usage: 12.6% of 228.3G               
+
+🧾 Top RAM Consumers:                        
+RAM jarayon ma'lumotlarini olish imkonsiz   
+
+📁 Disk Usage Breakdown:                     
+Disk foydalanish ma'lumotlarini olish imkonsiz
+
+2025-04-21 06:40:37,668 - [INFO] - RAM alert xabari Telegramga muvaffaqiyatli yuborildi
+2025-04-21 06:40:37,669 - [WARNING] - Yuqori swap ishlatilishi: 94.5%
+2025-04-21 06:40:38,727 - [ERROR] - Top jarayonlarni olishda xatolik: '<' not supported between instances of 'float' and 'NoneType'
+2025-04-21 06:40:38,909 - [INFO] - ----------------------------------------
+2025-04-21 06:40:38,909 - [INFO] - 
+           🖥️ SYSTEM STATUS ALERT           
+
+🗓️ Date: 2025-04-21 06:40:37                
+ Hostname: MacBook-Pro-Macbook.local        
+ IP Address: 192.168.0.110                  
+ Uptime: 4d 13h 54m                         
+ OS:                                        
+ Kernel: 24.3.0                             
+
+🧠 RAM Usage: 83.5% of 8.0Gi                 
+🔥 CPU Usage: 30.5%                          
+💾 Disk Usage: 12.6% of 228.3G               
+
+🧾 Top RAM Consumers:                        
+RAM jarayon ma'lumotlarini olish imkonsiz   
+
+📁 Disk Usage Breakdown:                     
+Disk foydalanish ma'lumotlarini olish imkonsiz
+
+2025-04-21 06:40:39,325 - [INFO] - Swap alert xabari Telegramga muvaffaqiyatli yuborildi
+2025-04-21 06:40:39,327 - [ERROR] - Monitoring jarayonida xatolik: name 'psutil' is not defined

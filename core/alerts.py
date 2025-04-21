@@ -7,6 +7,7 @@ Telegram orqali alert yuborish va Prometheus metrikalarini yangilash moduli
 
 import requests
 import time
+import datetime
 from prometheus_client import start_http_server, Gauge, Counter
 
 class AlertManager:
