@@ -287,6 +287,8 @@ class SystemMonitor:
             self.logger.error(f"Disk foydalanishini tekshirishda xatolik: {e}")
             return 0
 
+
+    
     def check_swap_usage(self):
         """
         Swap xotira foydalanish foizini tekshirish
@@ -392,6 +394,10 @@ class SystemMonitor:
         Returns:
             dict: Yo'l va hajm juftliklari
         """
+        if not self.config.get('monitor_disk', False):
+            self.logger.debug("Disk monitoring o'chirilgan, bo'sh breakdown qaytarilmoqda")
+            return {}
+        
         breakdown = {}
         paths = ['/usr', '/lib', '/snap']
         try:
