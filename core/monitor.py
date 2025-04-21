@@ -257,157 +257,177 @@ class SystemMonitor:
             self.logger.error(f"Tarmoq foydalanishini tekshirishda xatolik: {e}")
             return [0, 0]
 
-    def get_top_processes(self, resource_type):
-        """
-        Eng ko'p resurs ishlatuvchi jarayonlarni olish
+    # def get_top_processes(self, resource_type):
+    #     """
+    #     Eng ko'p resurs ishlatuvchi jarayonlarni olish
         
-        Args:
-            resource_type (str): Resurs turi ('RAM', 'CPU', 'Disk')
+    #     Args:
+    #         resource_type (str): Resurs turi ('RAM', 'CPU', 'Disk')
             
-        Returns:
-            str: Formatlangan jarayonlar ro'yxati
-        """
-        count = self.config.get('top_processes_count', 10)
-        try:
-            if resource_type == 'RAM':
-                processes = []
-                for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
-                    try:
-                        processes.append((proc.info['pid'], proc.info['name'], proc.info['memory_percent']))
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
+    #     Returns:
+    #         str: Formatlangan jarayonlar ro'yxati
+    #     """
+    #     count = self.config.get('top_processes_count', 10)
+    #     try:
+    #         if resource_type == 'RAM':
+    #             processes = []
+    #             for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
+    #                 try:
+    #                     processes.append((proc.info['pid'], proc.info['name'], proc.info['memory_percent']))
+    #                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+    #                     pass
                 
-                processes.sort(key=lambda x: x[2], reverse=True)
-                result = [f"  - {name.ljust(15)} ({mem_percent:.1f}%)" for _, name, mem_percent in processes[:count]]
-                return "\n".join(result)
+    #             processes.sort(key=lambda x: x[2], reverse=True)
+    #             result = [f"  - {name.ljust(15)} ({mem_percent:.1f}%)" for _, name, mem_percent in processes[:count]]
+    #             return "\n".join(result)
                 
-            elif resource_type == 'CPU':
-                # Yangilangan CPU jarayonlarini olish usuli
-                current_time = time.time()
-                processes = []
+    #         elif resource_type == 'CPU':
+    #             # Yangilangan CPU jarayonlarini olish usuli
+    #             current_time = time.time()
+    #             processes = []
                 
-                # Barcha jarayonlarni o'qib olish
-                for proc in psutil.process_iter(['pid', 'name']):
-                    try:
-                        pid = proc.info['pid']
-                        name = proc.info['name']
+    #             # Barcha jarayonlarni o'qib olish
+    #             for proc in psutil.process_iter(['pid', 'name']):
+    #                 try:
+    #                     pid = proc.info['pid']
+    #                     name = proc.info['name']
                         
-                        # Jarayon CPU vaqtini olish
-                        proc_cpu_times = proc.cpu_times()
-                        proc_create_time = proc.create_time()
+    #                     # Jarayon CPU vaqtini olish
+    #                     proc_cpu_times = proc.cpu_times()
+    #                     proc_create_time = proc.create_time()
                         
-                        # Jarayon uchun CPU vaqti va tizim vaqtini saqlash
-                        total_cpu_time = proc_cpu_times.user + proc_cpu_times.system
+    #                     # Jarayon uchun CPU vaqti va tizim vaqtini saqlash
+    #                     total_cpu_time = proc_cpu_times.user + proc_cpu_times.system
                         
-                        # Agar jarayon avval ko'rilgan bo'lsa, CPU foizini hisoblash
-                        if pid in self._process_cpu_times:
-                            old_time, old_timestamp = self._process_cpu_times[pid]
+    #                     # Agar jarayon avval ko'rilgan bo'lsa, CPU foizini hisoblash
+    #                     if pid in self._process_cpu_times:
+    #                         old_time, old_timestamp = self._process_cpu_times[pid]
                             
-                            # Vaqt farqini hisoblash
-                            time_delta = current_time - old_timestamp
+    #                         # Vaqt farqini hisoblash
+    #                         time_delta = current_time - old_timestamp
                             
-                            if time_delta > 0:
-                                # CPU vaqti farqini hisoblash
-                                cpu_delta = total_cpu_time - old_time
+    #                         if time_delta > 0:
+    #                             # CPU vaqti farqini hisoblash
+    #                             cpu_delta = total_cpu_time - old_time
                                 
-                                # CPU foizini hisoblash (100% = 1 CPU core)
-                                cpu_usage = (cpu_delta / time_delta) * 100
+    #                             # CPU foizini hisoblash (100% = 1 CPU core)
+    #                             cpu_usage = (cpu_delta / time_delta) * 100
                                 
-                                # Natijani qo'shish
-                                processes.append((pid, name, cpu_usage))
+    #                             # Natijani qo'shish
+    #                             processes.append((pid, name, cpu_usage))
                         
-                        # Joriy vaqtni yangilash
-                        self._process_cpu_times[pid] = (total_cpu_time, current_time)
+    #                     # Joriy vaqtni yangilash
+    #                     self._process_cpu_times[pid] = (total_cpu_time, current_time)
                         
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        # Jarayon yo'qolgan yoki ruxsat yo'q
-                        if pid in self._process_cpu_times:
-                            del self._process_cpu_times[pid]
-                        continue
+    #                 except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+    #                     # Jarayon yo'qolgan yoki ruxsat yo'q
+    #                     if pid in self._process_cpu_times:
+    #                         del self._process_cpu_times[pid]
+    #                     continue
                 
-                # Eski jarayonlarni tozalash (mavjud bo'lmagan jarayonlar)
-                pids_to_remove = []
-                for pid in self._process_cpu_times:
-                    if not psutil.pid_exists(pid):
-                        pids_to_remove.append(pid)
+    #             # Eski jarayonlarni tozalash (mavjud bo'lmagan jarayonlar)
+    #             pids_to_remove = []
+    #             for pid in self._process_cpu_times:
+    #                 if not psutil.pid_exists(pid):
+    #                     pids_to_remove.append(pid)
                 
-                for pid in pids_to_remove:
-                    del self._process_cpu_times[pid]
+    #             for pid in pids_to_remove:
+    #                 del self._process_cpu_times[pid]
                 
-                # Natijalarni tartiblash
-                processes.sort(key=lambda x: x[2], reverse=True)
+    #             # Natijalarni tartiblash
+    #             processes.sort(key=lambda x: x[2], reverse=True)
                 
-                # Agar hech qanday jarayon bo'lmasa yoki hisoblangan CPU foizlari bo'lmasa
-                if not processes:
-                    # Oddiy usul bilan olish
-                    self.logger.debug("CPU jarayonlari hisoblash uchun ma'lumot yetarli emas, oddiy usul ishlatilmoqda")
+    #             # Agar hech qanday jarayon bo'lmasa yoki hisoblangan CPU foizlari bo'lmasa
+    #             if not processes:
+    #                 # Oddiy usul bilan olish
+    #                 self.logger.debug("CPU jarayonlari hisoblash uchun ma'lumot yetarli emas, oddiy usul ishlatilmoqda")
                     
-                    # ps buyrug'i orqali olish
-                    try:
-                        output = subprocess.check_output("ps -eo pid,comm,%cpu --sort=-%cpu | head -n " + str(count+1), shell=True).decode()
-                        lines = output.strip().split('\n')[1:]  # Sarlavhani o'tkazib yuborish
+    #                 # ps buyrug'i orqali olish
+    #                 try:
+    #                     output = subprocess.check_output("ps -eo pid,comm,%cpu --sort=-%cpu | head -n " + str(count+1), shell=True).decode()
+    #                     lines = output.strip().split('\n')[1:]  # Sarlavhani o'tkazib yuborish
                         
-                        # Umumiy CPU foizini hisoblash
-                        total_cpu = 0
-                        result = []
-                        for line in lines:
-                            parts = line.strip().split()
-                            if len(parts) >= 3:
-                                pid = parts[0]
-                                name = parts[1]
-                                cpu_percent = float(parts[2])
-                                total_cpu += cpu_percent
-                                result.append(f"  - {name.ljust(15)} ({cpu_percent:.1f}%)")
+    #                     # Umumiy CPU foizini hisoblash
+    #                     total_cpu = 0
+    #                     result = []
+    #                     for line in lines:
+    #                         parts = line.strip().split()
+    #                         if len(parts) >= 3:
+    #                             pid = parts[0]
+    #                             name = parts[1]
+    #                             cpu_percent = float(parts[2])
+    #                             total_cpu += cpu_percent
+    #                             result.append(f"  - {name.ljust(15)} ({cpu_percent:.1f}%)")
                         
-                        # Umumiy CPU foizini saqlash
-                        self._top_cpu_processes_total = total_cpu
-                        self.logger.debug(f"Top {count} jarayonlar umumiy CPU foizi: {total_cpu:.1f}%")
+    #                     # Umumiy CPU foizini saqlash
+    #                     self._top_cpu_processes_total = total_cpu
+    #                     self.logger.debug(f"Top {count} jarayonlar umumiy CPU foizi: {total_cpu:.1f}%")
                         
-                        # Agar qo'shimcha ma'lumot ko'rsatish kerak bo'lsa
-                        if self.config.get('show_total_cpu_usage_in_list', True):
-                            result.append(f"\nUmumiy CPU usage (TOP {count}): {total_cpu:.1f}%")
+    #                     # Agar qo'shimcha ma'lumot ko'rsatish kerak bo'lsa
+    #                     if self.config.get('show_total_cpu_usage_in_list', True):
+    #                         result.append(f"\nUmumiy CPU usage (TOP {count}): {total_cpu:.1f}%")
                         
-                        return "\n".join(result)
-                    except Exception as e:
-                        self.logger.error(f"ps buyrug'i orqali CPU jarayonlarini olishda xatolik: {e}")
-                        return "CPU jarayon ma'lumotlarini olish imkonsiz"
+    #                     return "\n".join(result)
+    #                 except Exception as e:
+    #                     self.logger.error(f"ps buyrug'i orqali CPU jarayonlarini olishda xatolik: {e}")
+    #                     return "CPU jarayon ma'lumotlarini olish imkonsiz"
                 
-                # Umumiy CPU foizini hisoblash
-                total_cpu = sum(cpu_percent for _, _, cpu_percent in processes[:count])
-                self._top_cpu_processes_total = total_cpu
-                self.logger.debug(f"Top {count} jarayonlar umumiy CPU foizi: {total_cpu:.1f}%")
+    #             # Umumiy CPU foizini hisoblash
+    #             total_cpu = sum(cpu_percent for _, _, cpu_percent in processes[:count])
+    #             self._top_cpu_processes_total = total_cpu
+    #             self.logger.debug(f"Top {count} jarayonlar umumiy CPU foizi: {total_cpu:.1f}%")
                 
-                # Formatlangan natijani qaytarish
-                result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in processes[:count]]
+    #             # Formatlangan natijani qaytarish
+    #             result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in processes[:count]]
                 
-                # Agar qo'shimcha ma'lumot ko'rsatish kerak bo'lsa
-                if self.config.get('show_total_cpu_usage_in_list', True):
-                    result.append(f"\nUmumiy CPU usage (TOP {count}): {total_cpu:.1f}%")
+    #             # Agar qo'shimcha ma'lumot ko'rsatish kerak bo'lsa
+    #             if self.config.get('show_total_cpu_usage_in_list', True):
+    #                 result.append(f"\nUmumiy CPU usage (TOP {count}): {total_cpu:.1f}%")
                 
-                return "\n".join(result)
+    #             return "\n".join(result)
                 
-            elif resource_type == 'Disk':
-                try:
-                    output = subprocess.check_output(f"du -h {self.config['disk_path']}/* 2>/dev/null | sort -rh | head -n {count}", shell=True).decode()
-                    lines = output.strip().split('\n')
-                    result = []
-                    for line in lines:
-                        if line:
-                            parts = line.split('\t')
-                            if len(parts) == 2:
-                                size, path = parts
-                                path = os.path.basename(path)
-                                result.append(f"  - /{path.ljust(15)} {size}")
-                    return "\n".join(result)
-                except:
-                    return "Disk foydalanish ma'lumotlarini olish imkonsiz"
+    #         elif resource_type == 'Disk':
+    #             try:
+    #                 output = subprocess.check_output(f"du -h {self.config['disk_path']}/* 2>/dev/null | sort -rh | head -n {count}", shell=True).decode()
+    #                 lines = output.strip().split('\n')
+    #                 result = []
+    #                 for line in lines:
+    #                     if line:
+    #                         parts = line.split('\t')
+    #                         if len(parts) == 2:
+    #                             size, path = parts
+    #                             path = os.path.basename(path)
+    #                             result.append(f"  - /{path.ljust(15)} {size}")
+    #                 return "\n".join(result)
+    #             except:
+    #                 return "Disk foydalanish ma'lumotlarini olish imkonsiz"
                 
-            else:
-                return f"Noma'lum resurs turi: {resource_type}"
+    #         else:
+    #             return f"Noma'lum resurs turi: {resource_type}"
                 
-        except Exception as e:
-            self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
-            return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
+    #     except Exception as e:
+    #         self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
+    #         return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
+
+    def get_top_cpu_processes_with_total():
+        try:
+            # Top 10 processni formatlab olish
+            process_list_command = (
+                "ps -eo comm,%cpu --sort=-%cpu | "
+                "awk 'NR==1 {next} NR<=11 {printf \"│   - %-20s (%s%%)\\n\", $1, $2}'"
+            )
+            process_output = subprocess.check_output(process_list_command, shell=True, text=True)
+
+            # Umumiy CPU foizini hisoblash
+            total_cpu_command = (
+                "ps -eo %cpu --sort=-%cpu | awk 'NR==1 {next} NR<=11 {sum+=$1} END {printf \"Umumiy CPU: %.1f%%\\n\", sum}'"
+            )
+            total_output = subprocess.check_output(total_cpu_command, shell=True, text=True)
+
+            # Birlashtirib natijani qaytaradi
+            return process_output + total_output
+        except subprocess.CalledProcessError as e:
+            return f"Xatolik yuz berdi: {e}"
 
     def get_disk_breakdown(self):
         """
