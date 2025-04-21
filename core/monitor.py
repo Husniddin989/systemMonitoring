@@ -69,7 +69,7 @@ class SystemMonitor:
             uptime_seconds = time.time() - psutil.boot_time()
         
         uptime_days = int(uptime_seconds // 86400)
-        chuckle_hours = int((uptime_seconds % 86400) // 3600)
+        uptime_hours = int((uptime_seconds % 86400) // 3600)  # Corrected from chuckle_hours
         uptime_minutes = int((uptime_seconds % 3600) // 60)
         
         if uptime_days > 0:
@@ -114,7 +114,7 @@ class SystemMonitor:
             'uptime': uptime,
             'total_ram': f"{total_memory_gb:.1f}Gi",
             'total_disk': f"{total_disk_gb:.1f}G",
-            'total_cpu': f"{cpu_cores} cores"  # total_cpu qo‘shildi
+            'total_cpu': f"{cpu_cores} cores"
         }
 
     def check_ram_usage(self):
