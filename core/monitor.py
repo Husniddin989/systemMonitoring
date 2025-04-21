@@ -409,7 +409,7 @@ class SystemMonitor:
     #         self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
     #         return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
 
-    def get_top_processes():
+    def get_top_processes(self):
         try:
             # Top 10 processni formatlab olish
             process_list_command = (
