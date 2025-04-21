@@ -118,67 +118,16 @@ class SystemMonitor:
         mem = psutil.virtual_memory()
         return mem.percent
 
-    def get_top_processes(self, resource_type):
+    def check_cpu_usage(self):
         """
-        Eng ko‘p resurs ishlatuvchi jarayonlarni olish
+        CPU foydalanish foizini tekshirish
         
-        Args:
-            resource_type (str): Resurs turi ('RAM', 'CPU', 'Disk')
-            
         Returns:
-            str: Formatlangan jarayonlar ro‘yxati
+            float: CPU foydalanish foizi
         """
-        count = self.config['top_processes_count']
-        try:
-            if resource_type == 'RAM':
-                processes = []
-                for proc in psutil.process_iter(['pid', 'name', 'memory_percent']):
-                    try:
-                        processes.append((proc.info['pid'], proc.info['name'], proc.info['memory_percent']))
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
-                
-                processes.sort(key=lambda x: x[2], reverse=True)
-                result = [f"  - {name.ljust(15)} ({mem_percent:.1f}%)" for _, name, mem_percent in processes[:count]]
-                return "\n".join(result)
-                
-            elif resource_type == 'CPU':
-                processes = []
-                for proc in psutil.process_iter(['pid', 'name']):
-                    try:
-                        # CPU foizini 1 soniya oralig‘ida hisoblash
-                        cpu_percent = proc.cpu_percent(interval=1)
-                        if cpu_percent > 0:  # Faqat faol jarayonlarni qo‘shish
-                            processes.append((proc.info['pid'], proc.info['name'], cpu_percent))
-                    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-                        pass
-                
-                processes.sort(key=lambda x: x[2], reverse=True)
-                result = [f"  - {name.ljust(15)} ({cpu_percent:.1f}%)" for _, name, cpu_percent in processes[:count]]
-                return "\n".join(result)
-                
-            elif resource_type == 'Disk':
-                try:
-                    output = subprocess.check_output(f"du -h {self.config['disk_path']}/* 2>/dev/null | sort -rh | head -n {count}", shell=True).decode()
-                    lines = output.strip().split('\n')
-                    result = []
-                    for line in lines:
-                        if line:
-                            parts = line.split('\t')
-                            if len(parts) == 2:
-                                size, path = parts
-                                path = os.path.basename(path)
-                                result.append(f"  - /{path.ljust(15)} {size}")
-                    return "\n".join(result)
-                except:
-                    return "Disk foydalanish ma'lumotlarini olish imkonsiz"
-                
-            else:
-                return f"Noma'lum resurs turi: {resource_type}"
-                
-        except Exception as e:
-            self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
-            return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
+        if not self.config['monitor_cpu']:
+            return 0
+        return psutil.cpu_percent(interval=1)
 
     def check_disk_usage(self):
         """
@@ -265,8 +214,7 @@ class SystemMonitor:
             self.logger.error(f"Tarmoq foydalanishini tekshirishda xatolik: {e}")
             return [0, 0]
 
-    def get_top_processes(self, resource_type):
-
+    def get_top_processes(self):
         """
         Eng ko‘p resurs ishlatuvchi jarayonlarni olish
         
@@ -292,10 +240,12 @@ class SystemMonitor:
                 
             elif resource_type == 'CPU':
                 processes = []
-                for proc in psutil.process_iter(['pid', 'name', 'cpu_percent']):
+                for proc in psutil.process_iter(['pid', 'name']):
                     try:
-                        proc.cpu_percent(interval=0.1)
-                        processes.append((proc.info['pid'], proc.info['name'], proc.info['cpu_percent']))
+                        # CPU foizini 1 soniya oralig‘ida hisoblash
+                        cpu_percent = proc.cpu_percent(interval=1)
+                        if cpu_percent > 0:  # Faqat faol jarayonlarni qo‘shish
+                            processes.append((proc.info['pid'], proc.info['name'], cpu_percent))
                     except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
                         pass
                 
@@ -325,7 +275,6 @@ class SystemMonitor:
         except Exception as e:
             self.logger.error(f"Top jarayonlarni olishda xatolik: {e}")
             return f"{resource_type} jarayon ma'lumotlarini olish imkonsiz"
-        
 
     def get_disk_breakdown(self):
         """
