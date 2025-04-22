@@ -10,6 +10,7 @@ import sys
 import time
 import argparse
 import logging
+import fcntl
 from datetime import datetime
 
 # Modullarni import qilish
