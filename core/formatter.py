@@ -44,9 +44,14 @@ class AlertFormatter:
         try:
             date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             system_info = self.monitor.get_system_info()
+            
+            # Barcha metrikalarni olish
             ram_usage = self.monitor.check_ram_usage()
             cpu_usage = self.monitor.check_cpu_usage() if self.config.get('monitor_cpu', False) else 0
             disk_usage = self.monitor.check_disk_usage() if self.config.get('monitor_disk', False) else 0
+            swap_usage = self.monitor.check_swap_usage() if self.config.get('monitor_swap', False) else 0
+            load_average = self.monitor.check_load_average() if self.config.get('monitor_load', False) else 0
+            network_usage = self.monitor.check_network_usage() if self.config.get('monitor_network', False) else [0, 0]
 
             message = f"{self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')}\n\n"
             message += f"{self.config.get('alert_format_date_emoji', '🗓️')} Date: {date_str}\n"
@@ -55,10 +60,23 @@ class AlertFormatter:
             message += f"{self.config.get('alert_format_uptime_emoji', '⏳')} Uptime: {system_info.get('uptime', 'N/A')}\n"
             message += f"{self.config.get('alert_format_os_emoji', '🐧')} OS: {system_info.get('os', 'N/A')}\n"
             message += f"{self.config.get('alert_format_kernel_emoji', '⚙️')} Kernel: {system_info.get('kernel', 'N/A')}\n\n"
+            
+            # Resurslar bo'limi
             message += f"{self.config.get('alert_format_ram_emoji', '🧠')} RAM Usage: {ram_usage}% of {system_info.get('total_ram', 'N/A')}\n"
             message += f"{self.config.get('alert_format_cpu_emoji', '🔥')} CPU Usage: {cpu_usage}% of {system_info.get('total_cpu', 'N/A')}\n"
+            
             if self.config.get('monitor_disk', False):
                 message += f"{self.config.get('alert_format_disk_emoji', '💾')} Disk Usage: {disk_usage}% of {system_info.get('total_disk', 'N/A')}\n"
+            
+            if self.config.get('monitor_swap', False):
+                message += f"💾 Swap Usage: {swap_usage}%\n"
+            
+            if self.config.get('monitor_load', False):
+                message += f"⚖️ Load Average: {load_average:.1f}%\n"
+            
+            if self.config.get('monitor_network', False):
+                message += f"🌐 Network Usage: RX {network_usage[0]:.1f} Mbps, TX {network_usage[1]:.1f} Mbps\n"
+            
             message += "\n"
 
             if self.config.get('include_top_processes', False):
@@ -106,10 +124,14 @@ class AlertFormatter:
 
             date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             system_info = self.monitor.get_system_info()
+            
+            # Barcha metrikalarni olish
             ram_usage = self.monitor.check_ram_usage()
             cpu_usage = self.monitor.check_cpu_usage() if self.config.get('monitor_cpu', False) else 0
             disk_usage = self.monitor.check_disk_usage() if self.config.get('monitor_disk', False) else 0
             swap_usage = self.monitor.check_swap_usage() if self.config.get('monitor_swap', False) else 0
+            load_average = self.monitor.check_load_average() if self.config.get('monitor_load', False) else 0
+            network_usage = self.monitor.check_network_usage() if self.config.get('monitor_network', False) else [0, 0]
 
             message = [f"<pre>{top_border}"]
 
@@ -150,19 +172,32 @@ class AlertFormatter:
 
             # Resurslar
             if self.config.get('alert_format_include_resources', True):
+                # RAM va CPU
                 ram_text = f"{self.config.get('alert_format_ram_emoji', '🧠')} RAM Usage: {ram_usage}% of {system_info.get('total_ram', 'N/A')}"
                 cpu_text = f"{self.config.get('alert_format_cpu_emoji', '🔥')} CPU Usage: {cpu_usage}% of {system_info.get('total_cpu', 'N/A')}"
                 
                 message.append(f"{line_prefix}{ram_text:<{content_width}}{line_suffix}")
                 message.append(f"{line_prefix}{cpu_text:<{content_width}}{line_suffix}")
                 
+                # Disk
                 if self.config.get('monitor_disk', False):
                     disk_text = f"{self.config.get('alert_format_disk_emoji', '💾')} Disk Usage: {disk_usage}% of {system_info.get('total_disk', 'N/A')}"
                     message.append(f"{line_prefix}{disk_text:<{content_width}}{line_suffix}")
                 
-                if self.config.get('monitor_swap', False) and swap_usage > 0:
+                # Swap
+                if self.config.get('monitor_swap', False):
                     swap_text = f"💾 Swap Usage: {swap_usage}%"
                     message.append(f"{line_prefix}{swap_text:<{content_width}}{line_suffix}")
+                
+                # Load Average
+                if self.config.get('monitor_load', False):
+                    load_text = f"⚖️ Load Average: {load_average:.1f}%"
+                    message.append(f"{line_prefix}{load_text:<{content_width}}{line_suffix}")
+                
+                # Network
+                if self.config.get('monitor_network', False):
+                    network_text = f"🌐 Network: RX {network_usage[0]:.1f} Mbps, TX {network_usage[1]:.1f} Mbps"
+                    message.append(f"{line_prefix}{network_text:<{content_width}}{line_suffix}")
                 
                 message.append(section_border)
 
@@ -205,7 +240,9 @@ class AlertFormatter:
                         line = f"  - {path:<15} {size}"
                         message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
                 else:
-                    message.append(f"{line_prefix}  - Ma'lumot topilmadi{' ' * (content_width - len('  - Malumot topilmadi'))}{line_suffix}")
+                    no_data_text = "  - Ma'lumot topilmadi"
+                    padding = ' ' * (content_width - len(no_data_text))
+                    message.append(f"{line_prefix}{no_data_text}{padding}{line_suffix}")
                 
             message.append(bottom_border)
             message.append("</pre>")
@@ -213,3 +250,4 @@ class AlertFormatter:
         except Exception as e:
             self.logger.error(f"Chiroyli formatlashda xatolik: {str(e)}")
             return "Chiroyli formatlashda xatolik yuz berdi"
+
