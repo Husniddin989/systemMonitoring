@@ -32,6 +32,12 @@ class SystemMonitor:
         self._process_cpu_times = {}
         # Top CPU jarayonlar umumiy foizi
         self._top_cpu_processes_total = 0
+        
+        # Network o'lchovi uchun o'zgaruvchilar
+        self._last_network_measure_time = None
+        self._last_network_bytes_recv = 0
+        self._last_network_bytes_sent = 0
+        self._last_network_rates = [0, 0]  # [rx_rate, tx_rate]
 
     def get_system_info(self):
         """
@@ -233,33 +239,73 @@ class SystemMonitor:
 
     def check_network_usage(self):
         """
-        Tarmoq foydalanishini tekshirish (Mbps)
+        Tarmoq foydalanishini tekshirish (Mbps) - bloklashsiz usulda
         
         Returns:
             list: [rx_rate, tx_rate]
         """
         if not self.config.get('monitor_network', False):
             return [0, 0]
+            
         interface = self.config.get('network_interface', 'eth0')
         try:
+            current_time = time.time()
+            
+            # Mavjud tarmoq interfeyslari ro'yxatini olish
             net_io_counters = psutil.net_io_counters(pernic=True)
+            
+            # Agar interfeys topilmasa, avtomatik aniqlash
             if interface not in net_io_counters:
-                self.logger.error(f"Tarmoq interfeysi topilmadi: {interface}")
+                # Mavjud interfeyslarda birinchi faol bo'lganini tanlash
+                for iface, counters in net_io_counters.items():
+                    if iface != 'lo' and counters.bytes_recv > 0:
+                        interface = iface
+                        self.logger.info(f"Tarmoq interfeysi avtomatik aniqlandi: {interface}")
+                        self.config['network_interface'] = interface
+                        break
+                        
+                # Agar hali ham interfeys topilmasa
+                if interface not in net_io_counters:
+                    self.logger.error(f"Tarmoq interfeysi topilmadi: {interface}")
+                    return [0, 0]
+            
+            # Joriy o'lchovlarni olish
+            current_bytes_recv = net_io_counters[interface].bytes_recv
+            current_bytes_sent = net_io_counters[interface].bytes_sent
+            
+            # Agar bu birinchi o'lchov bo'lsa
+            if self._last_network_measure_time is None:
+                self._last_network_measure_time = current_time
+                self._last_network_bytes_recv = current_bytes_recv
+                self._last_network_bytes_sent = current_bytes_sent
                 return [0, 0]
             
-            rx_bytes_1 = net_io_counters[interface].bytes_recv
-            tx_bytes_1 = net_io_counters[interface].bytes_sent
+            # Vaqt farqini hisoblash
+            time_diff = current_time - self._last_network_measure_time
             
-            time.sleep(1)
-            
-            net_io_counters = psutil.net_io_counters(pernic=True)
-            rx_bytes_2 = net_io_counters[interface].bytes_recv
-            tx_bytes_2 = net_io_counters[interface].bytes_sent
-            
-            rx_rate = ((rx_bytes_2 - rx_bytes_1) * 8) / 1024 / 1024
-            tx_rate = ((tx_bytes_2 - tx_bytes_1) * 8) / 1024 / 1024
-            
-            return [rx_rate, tx_rate]
+            # Agar yetarlicha vaqt o'tgan bo'lsa, yangi o'lchovni olish
+            if time_diff >= 1.0:  # Kamida 1 soniya o'tgan bo'lishi kerak
+                # Bayt farqini hisoblash
+                bytes_recv_diff = current_bytes_recv - self._last_network_bytes_recv
+                bytes_sent_diff = current_bytes_sent - self._last_network_bytes_sent
+                
+                # Mbps ga aylantirish
+                rx_rate = (bytes_recv_diff * 8) / time_diff / 1024 / 1024
+                tx_rate = (bytes_sent_diff * 8) / time_diff / 1024 / 1024
+                
+                # Yangi qiymatlarni saqlash
+                self._last_network_measure_time = current_time
+                self._last_network_bytes_recv = current_bytes_recv
+                self._last_network_bytes_sent = current_bytes_sent
+                self._last_network_rates = [rx_rate, tx_rate]
+                
+                self.logger.debug(f"🌐 Network: RX {rx_rate:.1f} Mbps, TX {tx_rate:.1f} Mbps (yangilandi)")
+                return [rx_rate, tx_rate]
+            else:
+                # Agar yetarlicha vaqt o'tmagan bo'lsa, oxirgi o'lchovni qaytarish
+                self.logger.debug(f"🌐 Network: RX {self._last_network_rates[0]:.1f} Mbps, TX {self._last_network_rates[1]:.1f} Mbps (keshdan)")
+                return self._last_network_rates
+                
         except Exception as e:
             self.logger.error(f"Tarmoq foydalanishini tekshirishda xatolik: {e}")
             return [0, 0]
@@ -336,7 +382,7 @@ class SystemMonitor:
             return {}
         
         breakdown = {}
-        paths = ['/', '/var', '/home']
+        paths = ['/usr', '/lib', '/snap']
         try:
             for path in paths:
                 if os.path.exists(path):

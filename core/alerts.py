@@ -31,7 +31,9 @@ class AlertManager:
             'disk': 0,
             'swap': 0,
             'load': 0,
-            'network': 0
+            'network': 0,
+            'network_rx': 0,
+            'network_tx': 0
         }
         
         # Threshold qiymatlaridan oshganligini kuzatish uchun
@@ -41,8 +43,13 @@ class AlertManager:
             'disk': False,
             'swap': False,
             'load': False,
-            'network': False
+            'network': False,
+            'network_rx': False,
+            'network_tx': False
         }
+        
+        # Oxirgi yuborilgan alert vaqti (barcha alertlar uchun)
+        self.last_any_alert_time = 0
         
         # Prometheus sozlamalari
         if self.config.get('prometheus_enabled', False):
@@ -146,6 +153,37 @@ class AlertManager:
         
         return False
 
+    def check_alert_interval(self, alert_type):
+        """
+        Alert yuborish intervalini tekshirish
+        
+        Args:
+            alert_type (str): Alert turi
+            
+        Returns:
+            bool: Alert yuborish mumkin bo'lsa True
+        """
+        current_time = int(time.time())
+        alert_key = alert_type.lower()
+        
+        # Har qanday alert uchun minimal interval (barcha alertlar uchun)
+        min_alert_interval = self.config.get('min_alert_interval', 300)  # 5 daqiqa
+        time_since_last_any_alert = current_time - self.last_any_alert_time
+        
+        if time_since_last_any_alert < min_alert_interval:
+            self.logger.debug(f"Alert cheklandi (so'nggi alertdan {time_since_last_any_alert} soniya o'tdi, minimal interval: {min_alert_interval})")
+            return False
+        
+        # Har bir alert turi uchun alohida interval
+        alert_interval = self.config.get('alert_interval', 1800)  # 30 daqiqa
+        time_since_last_alert = current_time - self.last_alert_times.get(alert_key, 0)
+        
+        if time_since_last_alert < alert_interval:
+            self.logger.debug(f"{alert_type} alert cheklandi (so'nggi xabardan {time_since_last_alert} soniya o'tdi, interval: {alert_interval})")
+            return False
+        
+        return True
+
     def send_telegram_alert(self, alert_type, usage_value, database, system_info, current_value=None, threshold=None):
         """
         Telegram orqali alert yuborish
@@ -167,13 +205,8 @@ class AlertManager:
                 self.logger.debug(f"{alert_type} alert yuborilmadi (threshold qiymatidan oshmagan)")
                 return False
         
-        current_time = int(time.time())
-        alert_interval = self.config.get('check_interval', 60) * 10
-        alert_key = alert_type.lower()
-        
-        time_since_last_alert = current_time - self.last_alert_times.get(alert_key, 0)
-        if time_since_last_alert < alert_interval:
-            self.logger.debug(f"{alert_type} alert cheklandi (so'nggi xabardan {time_since_last_alert} soniya o'tdi)")
+        # Alert intervalini tekshirish
+        if not self.check_alert_interval(alert_type):
             return False
         
         message = self.formatter.format_alert_message(alert_type, usage_value)
@@ -199,10 +232,18 @@ class AlertManager:
                 if response.status_code == 200 and response.json().get('ok'):
                     self.logger.info(f"{alert_type} alert xabari Telegramga muvaffaqiyatli yuborildi")
                     success = True
-                    self.last_alert_times[alert_key] = current_time
+                    
+                    # Alert vaqtlarini yangilash
+                    current_time = int(time.time())
+                    self.last_alert_times[alert_type.lower()] = current_time
+                    self.last_any_alert_time = current_time
                     
                     if self.config.get('prometheus_enabled', False):
-                        getattr(self, f"prom_{alert_key}_alerts").inc()
+                        alert_key = alert_type.lower()
+                        if alert_key.startswith('network_'):
+                            alert_key = 'network'
+                        if hasattr(self, f"prom_{alert_key}_alerts"):
+                            getattr(self, f"prom_{alert_key}_alerts").inc()
                     
                     if self.config.get('db_enabled', False) and database:
                         database.store_alert(alert_type, usage_value, message, True, system_info)

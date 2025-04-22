@@ -95,8 +95,12 @@ class AlertFormatter:
             message += "\n"
 
             if self.config.get('include_top_processes', False):
+                # Umumiy qiymatlarni ko'rsatish uchun show_total=True
+                self.config['show_total_cpu_usage_in_list'] = True
+                
                 top_processes = self.monitor.get_top_processes('RAM')
                 message += f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top RAM Consumers:\n{top_processes}\n"
+                
                 top_cpu_processes = self.monitor.get_top_processes('CPU')
                 message += f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top CPU Consumers:\n{top_cpu_processes}\n"
             
@@ -231,31 +235,66 @@ class AlertFormatter:
 
             # Top jarayonlar (RAM)
             if self.config.get('alert_format_include_top_processes', True) and self.config.get('include_top_processes', False):
+                # Umumiy qiymatlarni ko'rsatish uchun show_total=True
+                self.config['show_total_cpu_usage_in_list'] = True
+                
                 header = f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top RAM Consumers:"
                 message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
+                
                 top_processes = self.monitor.get_top_processes('RAM')
                 top_processes_lines = top_processes.split('\n')
+                
+                # Jarayonlar va umumiy qiymatni alohida ajratish
+                process_lines = []
+                total_line = ""
+                
                 for proc in top_processes_lines:
                     if proc.strip():
-                        if proc.startswith('│'):
-                            # Agar jarayon qatori allaqachon formatli bo'lsa
-                            message.append(proc)
+                        if proc.startswith('Umumiy RAM:'):
+                            total_line = proc
+                        elif proc.startswith('│'):
+                            process_lines.append(proc)
                         else:
-                            message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
+                            process_lines.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
+                
+                # Jarayonlarni qo'shish
+                for line in process_lines:
+                    message.append(line)
+                
+                # Umumiy qiymatni qo'shish
+                if total_line:
+                    message.append(f"{line_prefix}{total_line:<{content_width}}{line_suffix}")
+                
                 message.append(section_border)
 
                 # Top jarayonlar (CPU)
                 header = f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top CPU Consumers:"
                 message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
+                
                 top_cpu_processes = self.monitor.get_top_processes('CPU')
                 top_cpu_processes_lines = top_cpu_processes.split('\n')
+                
+                # Jarayonlar va umumiy qiymatni alohida ajratish
+                process_lines = []
+                total_line = ""
+                
                 for proc in top_cpu_processes_lines:
                     if proc.strip():
-                        if proc.startswith('│'):
-                            # Agar jarayon qatori allaqachon formatli bo'lsa
-                            message.append(proc)
+                        if proc.startswith('Umumiy CPU usage'):
+                            total_line = proc
+                        elif proc.startswith('│'):
+                            process_lines.append(proc)
                         else:
-                            message.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
+                            process_lines.append(f"{line_prefix}{proc:<{content_width}}{line_suffix}")
+                
+                # Jarayonlarni qo'shish
+                for line in process_lines:
+                    message.append(line)
+                
+                # Umumiy qiymatni qo'shish
+                if total_line:
+                    message.append(f"{line_prefix}{total_line:<{content_width}}{line_suffix}")
+                
                 message.append(section_border)
 
             # Disk bo'linmalari
