@@ -34,6 +34,16 @@ class AlertManager:
             'network': 0
         }
         
+        # Threshold qiymatlaridan oshganligini kuzatish uchun
+        self.threshold_crossed = {
+            'ram': False,
+            'cpu': False,
+            'disk': False,
+            'swap': False,
+            'load': False,
+            'network': False
+        }
+        
         # Prometheus sozlamalari
         if self.config.get('prometheus_enabled', False):
             self._init_prometheus()
@@ -106,7 +116,37 @@ class AlertManager:
             self.logger.error(f"Prometheus metrikalarini yangilashda xatolik: {e}")
             return False
 
-    def send_telegram_alert(self, alert_type, usage_value, database, system_info):
+    def check_threshold_crossing(self, alert_type, current_value, threshold):
+        """
+        Threshold qiymatidan oshganligini tekshirish
+        
+        Args:
+            alert_type (str): Alert turi
+            current_value (float): Joriy qiymat
+            threshold (float): Threshold qiymati
+            
+        Returns:
+            bool: Alert yuborish kerak bo'lsa True
+        """
+        alert_key = alert_type.lower()
+        alert_mode = self.config.get('alert_mode', 'threshold_cross')
+        
+        # Agar alert_mode 'continuous' bo'lsa, har doim alert yuborish
+        if alert_mode == 'continuous':
+            return current_value >= threshold
+        
+        # Agar alert_mode 'threshold_cross' bo'lsa, faqat threshold qiymatidan oshganda alert yuborish
+        if current_value >= threshold:
+            if not self.threshold_crossed.get(alert_key, False):
+                self.threshold_crossed[alert_key] = True
+                return True
+        else:
+            # Threshold qiymatidan pastga tushganda, keyingi safar yana alert yuborish uchun
+            self.threshold_crossed[alert_key] = False
+        
+        return False
+
+    def send_telegram_alert(self, alert_type, usage_value, database, system_info, current_value=None, threshold=None):
         """
         Telegram orqali alert yuborish
         
@@ -115,10 +155,18 @@ class AlertManager:
             usage_value (str): Alert qiymati
             database (Database): Ma'lumotlar bazasi obyekti
             system_info (dict): Tizim ma'lumotlari
+            current_value (float, optional): Joriy qiymat
+            threshold (float, optional): Threshold qiymati
             
         Returns:
             bool: Muvaffaqiyatli yuborilgan bo'lsa True
         """
+        # Threshold qiymatidan oshganligini tekshirish
+        if current_value is not None and threshold is not None:
+            if not self.check_threshold_crossing(alert_type, current_value, threshold):
+                self.logger.debug(f"{alert_type} alert yuborilmadi (threshold qiymatidan oshmagan)")
+                return False
+        
         current_time = int(time.time())
         alert_interval = self.config.get('check_interval', 60) * 10
         alert_key = alert_type.lower()

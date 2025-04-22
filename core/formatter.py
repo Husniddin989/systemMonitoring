@@ -34,12 +34,12 @@ class AlertFormatter:
         """
         if not self.config.get('alert_format_enabled', False):
             self.logger.info("Oddiy matn formati ishlatilmoqda")
-            return self._simple_format()
+            return self._simple_format(alert_type)
 
         self.logger.info("Chiroyli formatlash ishlatilmoqda")
-        return self._formatted_alert()
+        return self._formatted_alert(alert_type)
 
-    def _simple_format(self):
+    def _simple_format(self, alert_type=None):
         """Oddiy matnli xabar formatlash"""
         try:
             date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -53,7 +53,13 @@ class AlertFormatter:
             load_average = self.monitor.check_load_average() if self.config.get('monitor_load', False) else 0
             network_usage = self.monitor.check_network_usage() if self.config.get('monitor_network', False) else [0, 0]
 
-            message = f"{self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')}\n\n"
+            # Alert sarlavhasini yaratish
+            if alert_type:
+                title = f"🚨 {alert_type} ALERT: {usage_value} threshold oshildi!"
+            else:
+                title = self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')
+
+            message = f"{title}\n\n"
             message += f"{self.config.get('alert_format_date_emoji', '🗓️')} Date: {date_str}\n"
             message += f"{self.config.get('alert_format_hostname_emoji', '🖥️')} Hostname: {system_info.get('hostname', 'N/A')}\n"
             message += f"{self.config.get('alert_format_ip_emoji', '🌐')} IP Address: {system_info.get('ip', 'N/A')}\n"
@@ -68,14 +74,14 @@ class AlertFormatter:
             if self.config.get('monitor_disk', False):
                 message += f"{self.config.get('alert_format_disk_emoji', '💾')} Disk Usage: {disk_usage}% of {system_info.get('total_disk', 'N/A')}\n"
             
-            if self.config.get('monitor_swap', False):
-                message += f"💾 Swap Usage: {swap_usage}%\n"
+            if self.config.get('monitor_swap', False) and self.config.get('include_swap_details', True):
+                message += f"{self.config.get('alert_format_swap_emoji', '💾')} Swap Usage: {swap_usage}%\n"
             
-            if self.config.get('monitor_load', False):
-                message += f"⚖️ Load Average: {load_average:.1f}%\n"
+            if self.config.get('monitor_load', False) and self.config.get('include_load_details', True):
+                message += f"{self.config.get('alert_format_load_emoji', '⚖️')} Load Average: {load_average:.1f}%\n"
             
-            if self.config.get('monitor_network', False):
-                message += f"🌐 Network Usage: RX {network_usage[0]:.1f} Mbps, TX {network_usage[1]:.1f} Mbps\n"
+            if self.config.get('monitor_network', False) and self.config.get('include_network_details', True):
+                message += f"{self.config.get('alert_format_network_emoji', '🌐')} Network Usage: RX {network_usage[0]:.1f} Mbps, TX {network_usage[1]:.1f} Mbps\n"
             
             message += "\n"
 
@@ -85,7 +91,7 @@ class AlertFormatter:
                 top_cpu_processes = self.monitor.get_top_processes('CPU')
                 message += f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top CPU Consumers:\n{top_cpu_processes}\n"
             
-            if self.config.get('alert_format_include_disk_breakdown', False) and self.config.get('monitor_disk', False):
+            if self.config.get('alert_format_include_disk_breakdown', False) and self.config.get('monitor_disk', False) and self.config.get('include_disk_details', True):
                 disk_breakdown = self.monitor.get_disk_breakdown()
                 message += f"{self.config.get('alert_format_disk_breakdown_emoji', '📁')} Disk Usage Breakdown:\n"
                 if disk_breakdown:
@@ -99,7 +105,7 @@ class AlertFormatter:
             self.logger.error(f"Oddiy formatlashda xatolik: {str(e)}")
             return "Oddiy formatlashda xatolik yuz berdi"
 
-    def _formatted_alert(self):
+    def _formatted_alert(self, alert_type=None):
         """Chiroyli chegarali xabar formatlash"""
         try:
             use_box_drawing = self.config.get('alert_format_use_box_drawing', True)
@@ -136,7 +142,11 @@ class AlertFormatter:
             message = [f"<pre>{top_border}"]
 
             # Sarlavha
-            title = self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')
+            if alert_type:
+                title = f"🚨 {alert_type} ALERT: {usage_value}"
+            else:
+                title = self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')
+                
             title_align = self.config.get('alert_format_title_align', 'center')
             if title_align == 'center':
                 title_line = title.center(content_width)
@@ -185,18 +195,18 @@ class AlertFormatter:
                     message.append(f"{line_prefix}{disk_text:<{content_width}}{line_suffix}")
                 
                 # Swap
-                if self.config.get('monitor_swap', False):
-                    swap_text = f"💾 Swap Usage: {swap_usage}%"
+                if self.config.get('monitor_swap', False) and self.config.get('include_swap_details', True) and self.config.get('alert_format_include_swap_details', True):
+                    swap_text = f"{self.config.get('alert_format_swap_emoji', '💾')} Swap Usage: {swap_usage}%"
                     message.append(f"{line_prefix}{swap_text:<{content_width}}{line_suffix}")
                 
                 # Load Average
-                if self.config.get('monitor_load', False):
-                    load_text = f"⚖️ Load Average: {load_average:.1f}%"
+                if self.config.get('monitor_load', False) and self.config.get('include_load_details', True) and self.config.get('alert_format_include_load_details', True):
+                    load_text = f"{self.config.get('alert_format_load_emoji', '⚖️')} Load Average: {load_average:.1f}%"
                     message.append(f"{line_prefix}{load_text:<{content_width}}{line_suffix}")
                 
                 # Network
-                if self.config.get('monitor_network', False):
-                    network_text = f"🌐 Network: RX {network_usage[0]:.1f} Mbps, TX {network_usage[1]:.1f} Mbps"
+                if self.config.get('monitor_network', False) and self.config.get('include_network_details', True) and self.config.get('alert_format_include_network_details', True):
+                    network_text = f"{self.config.get('alert_format_network_emoji', '🌐')} Network: RX {network_usage[0]:.1f} Mbps, TX {network_usage[1]:.1f} Mbps"
                     message.append(f"{line_prefix}{network_text:<{content_width}}{line_suffix}")
                 
                 message.append(section_border)
@@ -231,7 +241,7 @@ class AlertFormatter:
                 message.append(section_border)
 
             # Disk bo'linmalari
-            if self.config.get('alert_format_include_disk_breakdown', True) and self.config.get('monitor_disk', False):
+            if self.config.get('alert_format_include_disk_breakdown', True) and self.config.get('monitor_disk', False) and self.config.get('include_disk_details', True):
                 header = f"{self.config.get('alert_format_disk_breakdown_emoji', '📁')} Disk Usage Breakdown:"
                 message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
                 disk_breakdown = self.monitor.get_disk_breakdown()
@@ -250,4 +260,3 @@ class AlertFormatter:
         except Exception as e:
             self.logger.error(f"Chiroyli formatlashda xatolik: {str(e)}")
             return "Chiroyli formatlashda xatolik yuz berdi"
-
