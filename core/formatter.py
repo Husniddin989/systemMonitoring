@@ -32,6 +32,9 @@ class AlertFormatter:
         Returns:
             str: Formatlangan xabar
         """
+        if alert_type is None:
+            self.logger.warning("alert_type=None bilan chaqirildi, SYSTEM STATUS ALERT o'chirildi")
+            return None
         if not self.config.get('alert_format_enabled', False):
             self.logger.info("Oddiy matn formati ishlatilmoqda")
             return self._simple_format(alert_type, usage_value)

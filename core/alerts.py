@@ -210,6 +210,12 @@ class AlertManager:
             return False
         
         message = self.formatter.format_alert_message(alert_type, usage_value)
+        if not message:
+            self.logger.debug(f"{alert_type or 'SYSTEM STATUS'} xabari formatlanmadi")
+            return False
+    
+        self.logger.debug(f"Telegramga yuboriladigan xabar: {message}")
+        
         self.logger.info('-' * 40)
         self.logger.info(message)
         

@@ -69,6 +69,15 @@ def main():
     """
     Asosiy dastur
     """
+    # Lock faylini yaratish
+    lock_file = '/tmp/system_monitor.lock'
+    lock_fd = open(lock_file, 'w')
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except IOError:
+        logger.error("Boshqa System Monitor jarayoni ishlamoqda. Dastur to'xtatiladi.")
+        sys.exit(1)
+
     # Argumentlarni tahlil qilish
     parser = argparse.ArgumentParser(description='Tizim monitoringi')
     parser.add_argument('--config', type=str, default='./config.conf', help='Konfiguratsiya fayli yo\'li')
