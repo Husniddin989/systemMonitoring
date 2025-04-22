@@ -34,13 +34,22 @@ class AlertFormatter:
         """
         if not self.config.get('alert_format_enabled', False):
             self.logger.info("Oddiy matn formati ishlatilmoqda")
-            return self._simple_format(alert_type)
+            return self._simple_format(alert_type, usage_value)
 
         self.logger.info("Chiroyli formatlash ishlatilmoqda")
-        return self._formatted_alert(alert_type)
+        return self._formatted_alert(alert_type, usage_value)
 
-    def _simple_format(self, alert_type=None):
-        """Oddiy matnli xabar formatlash"""
+    def _simple_format(self, alert_type=None, usage_value=None):
+        """
+        Oddiy matnli xabar formatlash
+        
+        Args:
+            alert_type (str, optional): Alert turi
+            usage_value (str, optional): Alert qiymati
+            
+        Returns:
+            str: Formatlangan xabar
+        """
         try:
             date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             system_info = self.monitor.get_system_info()
@@ -54,7 +63,7 @@ class AlertFormatter:
             network_usage = self.monitor.check_network_usage() if self.config.get('monitor_network', False) else [0, 0]
 
             # Alert sarlavhasini yaratish
-            if alert_type:
+            if alert_type and usage_value:
                 title = f"🚨 {alert_type} ALERT: {usage_value} threshold oshildi!"
             else:
                 title = self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')
@@ -105,8 +114,17 @@ class AlertFormatter:
             self.logger.error(f"Oddiy formatlashda xatolik: {str(e)}")
             return "Oddiy formatlashda xatolik yuz berdi"
 
-    def _formatted_alert(self, alert_type=None):
-        """Chiroyli chegarali xabar formatlash"""
+    def _formatted_alert(self, alert_type=None, usage_value=None):
+        """
+        Chiroyli chegarali xabar formatlash
+        
+        Args:
+            alert_type (str, optional): Alert turi
+            usage_value (str, optional): Alert qiymati
+            
+        Returns:
+            str: Formatlangan xabar
+        """
         try:
             use_box_drawing = self.config.get('alert_format_use_box_drawing', True)
             width = self.config.get('alert_format_width', 44)
@@ -142,7 +160,7 @@ class AlertFormatter:
             message = [f"<pre>{top_border}"]
 
             # Sarlavha
-            if alert_type:
+            if alert_type and usage_value:
                 title = f"🚨 {alert_type} ALERT: {usage_value}"
             else:
                 title = self.config.get('alert_message_title', '🖥️ SYSTEM STATUS ALERT')
