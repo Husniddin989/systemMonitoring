@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Tizim monitoringi asosiy dasturi
+Tizim monitoringi asosiy dasturi - har bir metrika uchun alohida Telegram xabarlarini yuborish
 """
 
 import os
@@ -154,35 +154,35 @@ def main():
             if config.get('db_enabled', False) and database:
                 database.store_metrics(metrics, system_info)
             
-            # Alertlarni tekshirish
+            # Alertlarni tekshirish - har bir metrika uchun alohida xabar yuborish
             ram_threshold = config.get('ram_threshold', 80)
             if ram_usage >= ram_threshold:
-                alert_manager.send_telegram_alert('RAM', f"{ram_usage}%", database, system_info, ram_usage, ram_threshold)
+                alert_manager.format_and_send_metric_alert('RAM', f"{ram_usage}%", database, system_info, ram_usage, ram_threshold)
             
             cpu_threshold = config.get('cpu_threshold', 90)
             if config.get('monitor_cpu', False) and cpu_usage >= cpu_threshold:
-                alert_manager.send_telegram_alert('CPU', f"{cpu_usage}%", database, system_info, cpu_usage, cpu_threshold)
+                alert_manager.format_and_send_metric_alert('CPU', f"{cpu_usage}%", database, system_info, cpu_usage, cpu_threshold)
             
             disk_threshold = config.get('disk_threshold', 90)
             if config.get('monitor_disk', False) and disk_usage >= disk_threshold:
-                alert_manager.send_telegram_alert('Disk', f"{disk_usage}%", database, system_info, disk_usage, disk_threshold)
+                alert_manager.format_and_send_metric_alert('Disk', f"{disk_usage}%", database, system_info, disk_usage, disk_threshold)
             
             swap_threshold = config.get('swap_threshold', 80)
             if config.get('monitor_swap', False) and swap_usage >= swap_threshold:
-                alert_manager.send_telegram_alert('Swap', f"{swap_usage}%", database, system_info, swap_usage, swap_threshold)
+                alert_manager.format_and_send_metric_alert('Swap', f"{swap_usage}%", database, system_info, swap_usage, swap_threshold)
             
             load_threshold = config.get('load_threshold', 80)
             if config.get('monitor_load', False) and load_average >= load_threshold:
-                alert_manager.send_telegram_alert('Load', f"{load_average:.1f}%", database, system_info, load_average, load_threshold)
+                alert_manager.format_and_send_metric_alert('Load', f"{load_average:.1f}%", database, system_info, load_average, load_threshold)
             
             network_threshold = config.get('network_threshold', 90)
             if config.get('monitor_network', False):
                 network_rx = network_usage[0]
                 network_tx = network_usage[1]
                 if network_rx >= network_threshold:
-                    alert_manager.send_telegram_alert('Network RX', f"{network_rx:.1f} Mbps", database, system_info, network_rx, network_threshold)
+                    alert_manager.format_and_send_metric_alert('Network RX', f"{network_rx:.1f} Mbps", database, system_info, network_rx, network_threshold)
                 if network_tx >= network_threshold:
-                    alert_manager.send_telegram_alert('Network TX', f"{network_tx:.1f} Mbps", database, system_info, network_tx, network_threshold)
+                    alert_manager.format_and_send_metric_alert('Network TX', f"{network_tx:.1f} Mbps", database, system_info, network_tx, network_threshold)
             
             # Keyingi tekshirishgacha kutish
             execution_time = time.time() - start_time

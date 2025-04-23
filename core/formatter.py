@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Alert xabarlarini formatlash moduli
+Alert xabarlarini formatlash moduli - har bir metrika uchun alohida xabar formati
 """
 
 import datetime
@@ -21,9 +21,263 @@ class AlertFormatter:
         self.logger = logger
         self.monitor = monitor
 
+    def format_metric_alert(self, metric_type, usage_value, alert_format='HTML', alert_title=None, system_info=None):
+        """
+        Metrika turiga qarab xabarni formatlash
+        
+        Args:
+            metric_type (str): Metrika turi (RAM, CPU, Disk, va h.k.)
+            usage_value (str): Metrika qiymati
+            alert_format (str): Xabar formati (HTML yoki TEXT)
+            alert_title (str, optional): Xabar sarlavhasi
+            system_info (dict, optional): Tizim ma'lumotlari
+            
+        Returns:
+            str: Formatlangan xabar
+        """
+        metric_key = metric_type.lower()
+        
+        # Tizim ma'lumotlarini olish
+        if system_info is None:
+            system_info = self.monitor.get_system_info()
+            
+        date_str = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Metrika qiymatini olish
+        metric_value = None
+        if metric_key == 'ram':
+            metric_value = self.monitor.check_ram_usage()
+            metric_emoji = self.config.get('alert_format_ram_emoji', '🧠')
+            metric_total = system_info.get('total_ram', 'N/A')
+        elif metric_key == 'cpu':
+            metric_value = self.monitor.check_cpu_usage()
+            metric_emoji = self.config.get('alert_format_cpu_emoji', '🔥')
+            metric_total = system_info.get('total_cpu', 'N/A')
+        elif metric_key == 'disk':
+            metric_value = self.monitor.check_disk_usage()
+            metric_emoji = self.config.get('alert_format_disk_emoji', '💾')
+            metric_total = system_info.get('total_disk', 'N/A')
+        elif metric_key == 'swap':
+            metric_value = self.monitor.check_swap_usage()
+            metric_emoji = self.config.get('alert_format_swap_emoji', '💾')
+            metric_total = "N/A"
+        elif metric_key == 'load':
+            metric_value = self.monitor.check_load_average()
+            metric_emoji = self.config.get('alert_format_load_emoji', '⚖️')
+            metric_total = "N/A"
+        elif metric_key == 'network rx':
+            network_usage = self.monitor.check_network_usage()
+            metric_value = network_usage[0]
+            metric_emoji = self.config.get('alert_format_network_emoji', '🌐')
+            metric_total = "N/A"
+        elif metric_key == 'network tx':
+            network_usage = self.monitor.check_network_usage()
+            metric_value = network_usage[1]
+            metric_emoji = self.config.get('alert_format_network_emoji', '🌐')
+            metric_total = "N/A"
+        else:
+            metric_emoji = "🚨"
+            metric_total = "N/A"
+        
+        # Sarlavhani o'rnatish
+        if not alert_title:
+            alert_title = f'{metric_emoji} {metric_type} ALERT: {usage_value}'
+        
+        # Xabar formatini tanlash
+        if alert_format.upper() == 'HTML':
+            return self._format_html_metric_alert(metric_type, usage_value, metric_value, metric_emoji, metric_total, system_info, date_str, alert_title)
+        else:
+            return self._format_text_metric_alert(metric_type, usage_value, metric_value, metric_emoji, metric_total, system_info, date_str, alert_title)
+
+    def _format_html_metric_alert(self, metric_type, usage_value, metric_value, metric_emoji, metric_total, system_info, date_str, alert_title):
+        """
+        HTML formatida metrika xabarini formatlash
+        
+        Args:
+            metric_type (str): Metrika turi
+            usage_value (str): Metrika qiymati
+            metric_value (float): Metrika qiymati (son)
+            metric_emoji (str): Metrika emojisi
+            metric_total (str): Metrika umumiy qiymati
+            system_info (dict): Tizim ma'lumotlari
+            date_str (str): Sana va vaqt
+            alert_title (str): Xabar sarlavhasi
+            
+        Returns:
+            str: HTML formatida xabar
+        """
+        use_box_drawing = self.config.get('alert_format_use_box_drawing', True)
+        width = self.config.get('alert_format_width', 44)
+        
+        if use_box_drawing:
+            line_prefix = self.config.get('alert_format_line_prefix', '│ ')
+            line_suffix = self.config.get('alert_format_line_suffix', ' │')
+            top_border = self.config.get('alert_format_top_border', '┌' + '─' * (width - 2) + '┐')
+            title_border = self.config.get('alert_format_title_border', '├' + '─' * (width - 2) + '┤')
+            section_border = self.config.get('alert_format_section_border', '├' + '─' * (width - 2) + '┤')
+            bottom_border = self.config.get('alert_format_bottom_border', '└' + '─' * (width - 2) + '┘')
+        else:
+            line_prefix = ""
+            line_suffix = ""
+            top_border = ""
+            title_border = "─" * width
+            section_border = "─" * width
+            bottom_border = ""
+        
+        content_width = width - len(line_prefix) - len(line_suffix)
+        
+        message = [f"<pre>{top_border}"]
+        
+        # Sarlavha
+        title_align = self.config.get('alert_format_title_align', 'center')
+        if title_align == 'center':
+            title_line = alert_title.center(content_width)
+        elif title_align == 'right':
+            title_line = alert_title.rjust(content_width)
+        else:
+            title_line = alert_title.ljust(content_width)
+        message.append(f"{line_prefix}{title_line}{line_suffix}")
+        message.append(title_border)
+        
+        # Tizim ma'lumotlari
+        emojis = {
+            'date': self.config.get('alert_format_date_emoji', '🗓️'),
+            'hostname': self.config.get('alert_format_hostname_emoji', '🖥️'),
+            'ip': self.config.get('alert_format_ip_emoji', '🌐'),
+            'uptime': self.config.get('alert_format_uptime_emoji', '⏳')
+        }
+        
+        fields = [
+            (f"{emojis['date']} Date:", date_str),
+            (f"{emojis['hostname']} Hostname:", system_info.get('hostname', 'N/A')),
+            (f"{emojis['ip']} IP Address:", system_info.get('ip', 'N/A')),
+            (f"{emojis['uptime']} Uptime:", system_info.get('uptime', 'N/A'))
+        ]
+        
+        for label, value in fields:
+            line = f"{label} {value}"
+            message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
+        
+        message.append(section_border)
+        
+        # Metrika ma'lumotlari
+        metric_text = f"{metric_emoji} {metric_type}: {usage_value}"
+        if metric_total != "N/A":
+            metric_text += f" of {metric_total}"
+        
+        message.append(f"{line_prefix}{metric_text:<{content_width}}{line_suffix}")
+        
+        # Metrika turiga qarab qo'shimcha ma'lumotlar
+        metric_key = metric_type.lower()
+        
+        if metric_key == 'cpu' and self.config.get('include_top_processes', False):
+            message.append(section_border)
+            top_processes = self.monitor.get_top_processes('CPU')
+            top_processes_lines = top_processes.split('\n')
+            
+            header = f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top CPU Consumers:"
+            message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
+            
+            for line in top_processes_lines:
+                if line.strip():
+                    message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
+        
+        elif metric_key == 'ram' and self.config.get('include_top_processes', False):
+            message.append(section_border)
+            top_processes = self.monitor.get_top_processes('RAM')
+            top_processes_lines = top_processes.split('\n')
+            
+            header = f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top RAM Consumers:"
+            message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
+            
+            for line in top_processes_lines:
+                if line.strip():
+                    message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
+        
+        elif metric_key == 'disk' and self.config.get('alert_format_include_disk_breakdown', False):
+            message.append(section_border)
+            disk_breakdown = self.monitor.get_disk_breakdown() if hasattr(self.monitor, 'get_disk_breakdown') else None
+            
+            header = f"{self.config.get('alert_format_disk_breakdown_emoji', '📁')} Disk Usage Breakdown:"
+            message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
+            
+            if disk_breakdown:
+                for path, size in disk_breakdown.items():
+                    line = f"  - {path:<15} {size}"
+                    message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
+            else:
+                message.append(f"{line_prefix}  - Ma'lumot topilmadi{' ' * (content_width - 22)}{line_suffix}")
+        
+        message.append(bottom_border)
+        message.append("</pre>")
+        
+        return "\n".join(message)
+
+    def _format_text_metric_alert(self, metric_type, usage_value, metric_value, metric_emoji, metric_total, system_info, date_str, alert_title):
+        """
+        Oddiy matn formatida metrika xabarini formatlash
+        
+        Args:
+            metric_type (str): Metrika turi
+            usage_value (str): Metrika qiymati
+            metric_value (float): Metrika qiymati (son)
+            metric_emoji (str): Metrika emojisi
+            metric_total (str): Metrika umumiy qiymati
+            system_info (dict): Tizim ma'lumotlari
+            date_str (str): Sana va vaqt
+            alert_title (str): Xabar sarlavhasi
+            
+        Returns:
+            str: Oddiy matn formatida xabar
+        """
+        message = f"{alert_title}\n\n"
+        
+        # Tizim ma'lumotlari
+        emojis = {
+            'date': self.config.get('alert_format_date_emoji', '🗓️'),
+            'hostname': self.config.get('alert_format_hostname_emoji', '🖥️'),
+            'ip': self.config.get('alert_format_ip_emoji', '🌐'),
+            'uptime': self.config.get('alert_format_uptime_emoji', '⏳')
+        }
+        
+        message += f"{emojis['date']} Date: {date_str}\n"
+        message += f"{emojis['hostname']} Hostname: {system_info.get('hostname', 'N/A')}\n"
+        message += f"{emojis['ip']} IP Address: {system_info.get('ip', 'N/A')}\n"
+        message += f"{emojis['uptime']} Uptime: {system_info.get('uptime', 'N/A')}\n\n"
+        
+        # Metrika ma'lumotlari
+        message += f"{metric_emoji} {metric_type}: {usage_value}"
+        if metric_total != "N/A":
+            message += f" of {metric_total}"
+        message += "\n\n"
+        
+        # Metrika turiga qarab qo'shimcha ma'lumotlar
+        metric_key = metric_type.lower()
+        
+        if metric_key == 'cpu' and self.config.get('include_top_processes', False):
+            top_processes = self.monitor.get_top_processes('CPU')
+            message += f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top CPU Consumers:\n{top_processes}\n"
+        
+        elif metric_key == 'ram' and self.config.get('include_top_processes', False):
+            top_processes = self.monitor.get_top_processes('RAM')
+            message += f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top RAM Consumers:\n{top_processes}\n"
+        
+        elif metric_key == 'disk' and self.config.get('alert_format_include_disk_breakdown', False):
+            disk_breakdown = self.monitor.get_disk_breakdown() if hasattr(self.monitor, 'get_disk_breakdown') else None
+            
+            message += f"{self.config.get('alert_format_disk_breakdown_emoji', '📁')} Disk Usage Breakdown:\n"
+            
+            if disk_breakdown:
+                for path, size in disk_breakdown.items():
+                    message += f"  - {path:<15} {size}\n"
+            else:
+                message += "  - Ma'lumot topilmadi\n"
+        
+        return message
+
     def format_alert_message(self, alert_type=None, usage_value=None):
         """
-        Alert xabarini konfiguratsiyaga muvofiq formatlash
+        Alert xabarini konfiguratsiyaga muvofiq formatlash (eski usul, backward compatibility uchun)
         
         Args:
             alert_type (str, optional): Alert turi (masalan, 'RAM', 'CPU')
@@ -44,7 +298,7 @@ class AlertFormatter:
 
     def _simple_format(self, alert_type=None, usage_value=None):
         """
-        Oddiy matnli xabar formatlash
+        Oddiy matnli xabar formatlash (eski usul, backward compatibility uchun)
         
         Args:
             alert_type (str, optional): Alert turi
@@ -108,7 +362,7 @@ class AlertFormatter:
                 message += f"{self.config.get('alert_format_top_processes_emoji', '🧾')} Top CPU Consumers:\n{top_cpu_processes}\n"
             
             if self.config.get('alert_format_include_disk_breakdown', False) and self.config.get('monitor_disk', False) and self.config.get('include_disk_details', True):
-                disk_breakdown = self.monitor.get_disk_breakdown()
+                disk_breakdown = self.monitor.get_disk_breakdown() if hasattr(self.monitor, 'get_disk_breakdown') else None
                 message += f"{self.config.get('alert_format_disk_breakdown_emoji', '📁')} Disk Usage Breakdown:\n"
                 if disk_breakdown:
                     for path, size in disk_breakdown.items():
@@ -123,7 +377,7 @@ class AlertFormatter:
 
     def _formatted_alert(self, alert_type=None, usage_value=None):
         """
-        Chiroyli chegarali xabar formatlash
+        Chiroyli chegarali xabar formatlash (eski usul, backward compatibility uchun)
         
         Args:
             alert_type (str, optional): Alert turi
@@ -300,23 +554,25 @@ class AlertFormatter:
                 
                 message.append(section_border)
 
-            # Disk bo'linmalari
+            # Disk breakdown
             if self.config.get('alert_format_include_disk_breakdown', True) and self.config.get('monitor_disk', False) and self.config.get('include_disk_details', True):
+                disk_breakdown = self.monitor.get_disk_breakdown() if hasattr(self.monitor, 'get_disk_breakdown') else None
+                
                 header = f"{self.config.get('alert_format_disk_breakdown_emoji', '📁')} Disk Usage Breakdown:"
                 message.append(f"{line_prefix}{header:<{content_width}}{line_suffix}")
-                disk_breakdown = self.monitor.get_disk_breakdown()
+                
                 if disk_breakdown:
                     for path, size in disk_breakdown.items():
                         line = f"  - {path:<15} {size}"
                         message.append(f"{line_prefix}{line:<{content_width}}{line_suffix}")
                 else:
-                    no_data_text = "  - Ma'lumot topilmadi"
-                    padding = ' ' * (content_width - len(no_data_text))
-                    message.append(f"{line_prefix}{no_data_text}{padding}{line_suffix}")
-                
+                    message.append(f"{line_prefix}  - Ma'lumot topilmadi{' ' * (content_width - 22)}{line_suffix}")
+            
             message.append(bottom_border)
             message.append("</pre>")
+            
             return "\n".join(message)
+            
         except Exception as e:
             self.logger.error(f"Chiroyli formatlashda xatolik: {str(e)}")
             return "Chiroyli formatlashda xatolik yuz berdi"

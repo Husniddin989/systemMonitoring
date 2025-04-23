@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Telegram orqali alert yuborish va Prometheus metrikalarini yangilash moduli
+Telegram orqali har bir metrika uchun alohida alert yuborish moduli
 """
 
 import requests
@@ -123,6 +123,31 @@ class AlertManager:
             self.logger.error(f"Prometheus metrikalarini yangilashda xatolik: {e}")
             return False
 
+    def _standardize_alert_key(self, alert_type):
+        """
+        Alert turini standartlashtirish
+        
+        Args:
+            alert_type (str): Alert turi
+            
+        Returns:
+            str: Standartlashtirilgan alert kaliti
+        """
+        if not alert_type:
+            return 'unknown'
+            
+        alert_key = alert_type.lower()
+        
+        # Network alertlari uchun maxsus ishlov
+        if alert_key == 'network rx':
+            return 'network_rx'
+        elif alert_key == 'network tx':
+            return 'network_tx'
+        elif alert_key.startswith('network'):
+            return 'network'
+            
+        return alert_key
+
     def check_threshold_crossing(self, alert_type, current_value, threshold):
         """
         Threshold qiymatidan oshganligini tekshirish
@@ -135,7 +160,8 @@ class AlertManager:
         Returns:
             bool: Alert yuborish kerak bo'lsa True
         """
-        alert_key = alert_type.lower()
+        # Alert turini standartlashtirish
+        alert_key = self._standardize_alert_key(alert_type)
         alert_mode = self.config.get('alert_mode', 'threshold_cross')
         
         # Agar alert_mode 'continuous' bo'lsa, har doim alert yuborish
@@ -164,7 +190,7 @@ class AlertManager:
             bool: Alert yuborish mumkin bo'lsa True
         """
         current_time = int(time.time())
-        alert_key = alert_type.lower()
+        alert_key = self._standardize_alert_key(alert_type)
         
         # Har qanday alert uchun minimal interval (barcha alertlar uchun)
         min_alert_interval = self.config.get('min_alert_interval', 300)  # 5 daqiqa
@@ -184,13 +210,13 @@ class AlertManager:
         
         return True
 
-    def send_telegram_alert(self, alert_type, usage_value, database, system_info, current_value=None, threshold=None):
+    def format_and_send_metric_alert(self, metric_type, usage_value, database, system_info, current_value=None, threshold=None):
         """
-        Telegram orqali alert yuborish
+        Metrika turiga qarab xabarni formatlash va yuborish
         
         Args:
-            alert_type (str): Alert turi
-            usage_value (str): Alert qiymati
+            metric_type (str): Metrika turi (RAM, CPU, Disk, va h.k.)
+            usage_value (str): Metrika qiymati
             database (Database): Ma'lumotlar bazasi obyekti
             system_info (dict): Tizim ma'lumotlari
             current_value (float, optional): Joriy qiymat
@@ -199,21 +225,55 @@ class AlertManager:
         Returns:
             bool: Muvaffaqiyatli yuborilgan bo'lsa True
         """
+        # Metrika uchun alohida xabar yuborish yoqilganligini tekshirish
+        metric_key = self._standardize_alert_key(metric_type)
+        separate_alert_key = f'{metric_key}_separate_alert'
+        
+        if not self.config.get(separate_alert_key, True):
+            # Agar alohida xabar yuborish yoqilmagan bo'lsa, standart usulda yuborish
+            return self.send_telegram_alert(metric_type, usage_value, database, system_info, current_value, threshold)
+        
         # Threshold qiymatidan oshganligini tekshirish
         if current_value is not None and threshold is not None:
-            if not self.check_threshold_crossing(alert_type, current_value, threshold):
-                self.logger.debug(f"{alert_type} alert yuborilmadi (threshold qiymatidan oshmagan)")
+            if not self.check_threshold_crossing(metric_type, current_value, threshold):
+                self.logger.debug(f"{metric_type} alert yuborilmadi (threshold qiymatidan oshmagan)")
                 return False
         
         # Alert intervalini tekshirish
-        if not self.check_alert_interval(alert_type):
+        if not self.check_alert_interval(metric_type):
             return False
         
-        message = self.formatter.format_alert_message(alert_type, usage_value)
+        # Metrika uchun alohida xabar formatini tanlash
+        alert_format_key = f'{metric_key}_alert_format'
+        alert_title_key = f'{metric_key}_alert_title'
+        
+        alert_format = self.config.get(alert_format_key, 'HTML')
+        alert_title = self.config.get(alert_title_key, f'🚨 {metric_type} ALERT')
+        
+        # Xabarni formatlash
+        message = self.formatter.format_metric_alert(metric_type, usage_value, alert_format, alert_title, system_info)
         if not message:
-            self.logger.debug(f"{alert_type or 'SYSTEM STATUS'} xabari formatlanmadi")
+            self.logger.debug(f"{metric_type} xabari formatlanmadi")
             return False
-    
+        
+        # Xabarni yuborish
+        return self._send_telegram_message(metric_type, message, database, system_info)
+
+    def _send_telegram_message(self, alert_type, message, database, system_info):
+        """
+        Telegram orqali xabar yuborish
+        
+        Args:
+            alert_type (str): Alert turi
+            message (str): Xabar matni
+            database (Database): Ma'lumotlar bazasi obyekti
+            system_info (dict): Tizim ma'lumotlari
+            
+        Returns:
+            bool: Muvaffaqiyatli yuborilgan bo'lsa True
+        """
+        alert_key = self._standardize_alert_key(alert_type)
+        
         self.logger.debug(f"Telegramga yuboriladigan xabar: {message}")
         
         self.logger.info('-' * 40)
@@ -241,18 +301,20 @@ class AlertManager:
                     
                     # Alert vaqtlarini yangilash
                     current_time = int(time.time())
-                    self.last_alert_times[alert_type.lower()] = current_time
+                    self.last_alert_times[alert_key] = current_time
                     self.last_any_alert_time = current_time
                     
                     if self.config.get('prometheus_enabled', False):
-                        alert_key = alert_type.lower()
-                        if alert_key.startswith('network_'):
-                            alert_key = 'network'
-                        if hasattr(self, f"prom_{alert_key}_alerts"):
-                            getattr(self, f"prom_{alert_key}_alerts").inc()
+                        # Prometheus uchun alert_key ni standartlashtirish
+                        prom_key = alert_key
+                        if prom_key in ['network_rx', 'network_tx']:
+                            prom_key = 'network'
+                            
+                        if hasattr(self, f"prom_{prom_key}_alerts"):
+                            getattr(self, f"prom_{prom_key}_alerts").inc()
                     
                     if self.config.get('db_enabled', False) and database:
-                        database.store_alert(alert_type, usage_value, message, True, system_info)
+                        database.store_alert(alert_type, message, True, system_info)
                     
                 else:
                     retry += 1
@@ -271,11 +333,46 @@ class AlertManager:
             self.logger.error(f"CHAT_ID: {self.config['chat_id']}")
             
             if self.config.get('db_enabled', False) and database:
-                database.store_alert(alert_type, usage_value, message, False, system_info)
+                database.store_alert(alert_type, message, False, system_info)
             
             return False
         
         return True
+
+    def send_telegram_alert(self, alert_type, usage_value, database, system_info, current_value=None, threshold=None):
+        """
+        Telegram orqali alert yuborish (eski usul, backward compatibility uchun)
+        
+        Args:
+            alert_type (str): Alert turi
+            usage_value (str): Alert qiymati
+            database (Database): Ma'lumotlar bazasi obyekti
+            system_info (dict): Tizim ma'lumotlari
+            current_value (float, optional): Joriy qiymat
+            threshold (float, optional): Threshold qiymati
+            
+        Returns:
+            bool: Muvaffaqiyatli yuborilgan bo'lsa True
+        """
+        # Alert turini standartlashtirish
+        alert_key = self._standardize_alert_key(alert_type)
+        
+        # Threshold qiymatidan oshganligini tekshirish
+        if current_value is not None and threshold is not None:
+            if not self.check_threshold_crossing(alert_type, current_value, threshold):
+                self.logger.debug(f"{alert_type} alert yuborilmadi (threshold qiymatidan oshmagan)")
+                return False
+        
+        # Alert intervalini tekshirish
+        if not self.check_alert_interval(alert_type):
+            return False
+        
+        message = self.formatter.format_alert_message(alert_type, usage_value)
+        if not message:
+            self.logger.debug(f"{alert_type or 'SYSTEM STATUS'} xabari formatlanmadi")
+            return False
+    
+        return self._send_telegram_message(alert_type, message, database, system_info)
 
     def test_telegram_connection(self):
         """
