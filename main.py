@@ -3,6 +3,7 @@
 
 """
 Tizim monitoringi asosiy dasturi - har bir metrika uchun alohida Telegram xabarlarini yuborish
+Umumiy SYSTEM STATUS ALERT o'chirilgan
 """
 
 import os
@@ -155,6 +156,8 @@ def main():
                 database.store_metrics(metrics, system_info)
             
             # Alertlarni tekshirish - har bir metrika uchun alohida xabar yuborish
+            # Umumiy xabar yuborish o'chirilgan
+            
             ram_threshold = config.get('ram_threshold', 80)
             if ram_usage >= ram_threshold:
                 alert_manager.format_and_send_metric_alert('RAM', f"{ram_usage}%", database, system_info, ram_usage, ram_threshold)
@@ -175,14 +178,15 @@ def main():
             if config.get('monitor_load', False) and load_average >= load_threshold:
                 alert_manager.format_and_send_metric_alert('Load', f"{load_average:.1f}%", database, system_info, load_average, load_threshold)
             
-            # network_threshold = config.get('network_threshold', 90)
-            # if config.get('monitor_network', False):
-            #     network_rx = network_usage[0]
-            #     network_tx = network_usage[1]
-            #     if network_rx >= network_threshold:
-            #         alert_manager.format_and_send_metric_alert('Network RX', f"{network_rx:.1f} Mbps", database, system_info, network_rx, network_threshold)
-            #     if network_tx >= network_threshold:
-            #         alert_manager.format_and_send_metric_alert('Network TX', f"{network_tx:.1f} Mbps", database, system_info, network_tx, network_threshold)
+            # Network alertlari o'chirilgan
+            if config.get('monitor_network', False):
+                network_threshold = config.get('network_threshold', 90)
+                network_rx = network_usage[0]
+                network_tx = network_usage[1]
+                if network_rx >= network_threshold and config.get('network_separate_alert', False):
+                    alert_manager.format_and_send_metric_alert('Network RX', f"{network_rx:.1f} Mbps", database, system_info, network_rx, network_threshold)
+                if network_tx >= network_threshold and config.get('network_separate_alert', False):
+                    alert_manager.format_and_send_metric_alert('Network TX', f"{network_tx:.1f} Mbps", database, system_info, network_tx, network_threshold)
             
             # Keyingi tekshirishgacha kutish
             execution_time = time.time() - start_time
