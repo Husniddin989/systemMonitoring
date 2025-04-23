@@ -33,8 +33,8 @@ class ConfigLoader:
         """
         # Standart konfiguratsiya qiymatlari
         default_config = {
-            'bot_token': "",
-            'chat_id': "",
+            'bot_token': "7120243579:AAEoaMz5DK8pv1uvwmbD--Mmt8nqbhL_mec",
+            'chat_id': "664131109",
             'log_file': '/var/log/system_monitor.log',
             'ram_threshold': 80,
             'check_interval': 60,
