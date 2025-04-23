@@ -175,14 +175,14 @@ def main():
             if config.get('monitor_load', False) and load_average >= load_threshold:
                 alert_manager.format_and_send_metric_alert('Load', f"{load_average:.1f}%", database, system_info, load_average, load_threshold)
             
-            network_threshold = config.get('network_threshold', 90)
-            if config.get('monitor_network', False):
-                network_rx = network_usage[0]
-                network_tx = network_usage[1]
-                if network_rx >= network_threshold:
-                    alert_manager.format_and_send_metric_alert('Network RX', f"{network_rx:.1f} Mbps", database, system_info, network_rx, network_threshold)
-                if network_tx >= network_threshold:
-                    alert_manager.format_and_send_metric_alert('Network TX', f"{network_tx:.1f} Mbps", database, system_info, network_tx, network_threshold)
+            # network_threshold = config.get('network_threshold', 90)
+            # if config.get('monitor_network', False):
+            #     network_rx = network_usage[0]
+            #     network_tx = network_usage[1]
+            #     if network_rx >= network_threshold:
+            #         alert_manager.format_and_send_metric_alert('Network RX', f"{network_rx:.1f} Mbps", database, system_info, network_rx, network_threshold)
+            #     if network_tx >= network_threshold:
+            #         alert_manager.format_and_send_metric_alert('Network TX', f"{network_tx:.1f} Mbps", database, system_info, network_tx, network_threshold)
             
             # Keyingi tekshirishgacha kutish
             execution_time = time.time() - start_time
