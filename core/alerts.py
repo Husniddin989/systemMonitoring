@@ -21,6 +21,7 @@ class AlertManager:
             formatter (AlertFormatter): Xabar formatlovchi obyekti
             monitor (SystemMonitor): Tizim monitoring obyekti
         """
+        # Konfiguratsiya, logger, formatlovchi va monitoring ob'ektlarini saqlash
         self.config = config
         self.logger = logger
         self.formatter = formatter
