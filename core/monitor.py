@@ -438,7 +438,7 @@ class SystemMonitor:
             return {}
         
         breakdown = {}
-        paths = ['/usr', '/lib', '/snap']
+        paths = ['/', '/var', '/root', '/home', '/tmp', '/mnt', '/media']
         try:
             for path in paths:
                 if os.path.exists(path):
